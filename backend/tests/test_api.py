@@ -1,0 +1,224 @@
+import os
+import tempfile
+from pathlib import Path
+
+db_path = Path(tempfile.gettempdir()) / "dnd_dm_agent_test_api.db"
+db_path.unlink(missing_ok=True)
+os.environ["DATABASE_URL"] = f"sqlite:///{db_path.as_posix()}"
+os.environ["DATA_DIR"] = str(Path(__file__).parents[2] / "data")
+
+from fastapi.testclient import TestClient
+from app.main import app
+
+
+def test_mvp_closed_loop():
+    with TestClient(app) as client:
+        assert client.get("/health").json() == {"status": "ok"}
+        assert client.post("/ingest/compendium").json()["imported"] >= 3
+        assert client.post("/ingest/rules").json()["imported"] >= 1
+        demo = client.post("/demo/bootstrap").json()
+        character_id = demo["character"]["id"]
+        result = client.post("/chat/campaign_001", json={
+            "session_id": "test_session", "character_id": character_id, "message": "我喝一瓶治疗药水。"
+        }).json()
+        assert result["rolls"][0]["formula"] == "2d4+2"
+        assert len(result["state_changes"]) == 2
+        character = client.get(f"/characters/{character_id}").json()
+        assert character["data"]["combat"]["current_hp"] > 9
+        assert character["data"]["inventory"][1]["quantity"] == 1
+        assert len(client.get(f"/characters/{character_id}/changes").json()) >= 1
+        assert len(client.get("/campaigns/campaign_001/events").json()) >= 1
+        assert client.post("/campaigns/campaign_001/summaries?session_id=test_session").status_code == 201
+
+
+def test_dice_validation():
+    with TestClient(app) as client:
+        assert client.post("/dice/roll", json={"formula": "1d20+5"}).status_code == 200
+        assert client.post("/dice/roll", json={"formula": "rm -rf"}).status_code == 400
+
+
+def test_qq_character_binding_crud():
+    with TestClient(app) as client:
+        client.post("/demo/bootstrap")
+        response = client.put("/napcat/bindings/123456789", json={
+            "campaign_id": "campaign_001",
+            "character_id": "char_001",
+            "display_name": "Alice",
+            "note": "fighter",
+        })
+        assert response.status_code == 200
+        assert response.json()["character_name"] == "Aric"
+        assert client.get("/napcat/bindings/123456789").json()["character_id"] == "char_001"
+        assert len(client.get("/napcat/bindings?campaign_id=campaign_001").json()) >= 1
+        assert client.delete("/napcat/bindings/123456789").status_code == 204
+        assert client.get("/napcat/bindings/123456789").status_code == 404
+
+
+def test_character_builder_and_template_export():
+    with TestClient(app) as client:
+        client.post("/demo/bootstrap")
+        catalog = client.get("/characters/rules/catalog").json()
+        assert catalog["point_buy"]["budget"] == 27
+        assert catalog["classes"]["wizard"]["hit_die"] == 6
+        result = client.post("/characters/build", json={
+            "campaign_id": "campaign_001",
+            "player_name": "Alice",
+            "character_name": "Luna",
+            "ancestry": "Elf",
+            "background": "Sage",
+            "class_name": "Wizard",
+            "level": 1,
+            "hit_die": 6,
+            "abilities": {"str": 8, "dex": 14, "con": 13, "int": 15, "wis": 12, "cha": 10},
+            "skill_proficiencies": ["arcana", "history"],
+            "spells": ["Fireball"],
+            "backstory": "Searching for a lost observatory.",
+        })
+        assert result.status_code == 201
+        character = result.json()
+        assert character["point_buy_cost"] == 27
+        assert character["data"]["combat"]["proficiency_bonus"] == 2
+        assert character["data"]["skills"]["arcana"]["proficient"]
+        assert character["data"]["saving_throw_proficiencies"] == ["int", "wis"]
+        assert character["data"]["spells"][0]["name"] == "火球术"
+        sheet = client.get(f"/characters/{character['id']}/sheet")
+        assert sheet.status_code == 200
+        assert sheet.headers["content-type"].startswith(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+
+def test_dm_reasoning_receives_campaign_memory(monkeypatch):
+    captured = {}
+
+    def fake_chat(messages):
+        captured["messages"] = messages
+        return "The guard remembers your earlier promise."
+
+    monkeypatch.setattr("app.services.chat_completion", fake_chat)
+    with TestClient(app) as client:
+        client.post("/demo/bootstrap")
+        client.post("/campaigns/campaign_001/events", json={
+            "session_id": "another_player_session",
+            "event_type": "story",
+            "content": "The player promised to return the silver key.",
+            "actors": ["char_001"],
+            "metadata": {"dm_response": "The guard accepted the promise."},
+        })
+        client.post("/campaigns/campaign_001/summaries?session_id=memory_test")
+        response = client.post("/chat/campaign_001", json={
+            "session_id": "memory_test",
+            "character_id": "char_001",
+            "message": "I approach the guard again.",
+        })
+        assert response.json()["narration"] == "The guard remembers your earlier promise."
+        context = captured["messages"][1]["content"]
+        assert "silver key" in context
+        assert "char_001" in context
+        event = response.json()["events"][0]
+        assert event["metadata"]["context_refs"]["character_id"] == "char_001"
+
+
+def test_spell_lookup_and_dm_spell_context(monkeypatch):
+    captured = {}
+
+    def fake_chat(messages):
+        captured["context"] = messages[1]["content"]
+        return "A bead of flame streaks forward."
+
+    monkeypatch.setattr("app.services.chat_completion", fake_chat)
+    with TestClient(app) as client:
+        client.post("/demo/bootstrap")
+        api_result = client.get("/spells", params={"query": "Fireball", "limit": 1}).json()
+        assert api_result[0]["name"] == "火球术"
+        direct = client.post("/chat/campaign_001", json={
+            "session_id": "spell_test", "player_id": "player", "message": "/法术 火球术",
+        }).json()
+        assert direct["command"] == "spell_search"
+        assert direct["data"]["spells"][0]["english_name"] == "Fireball"
+        action = client.post("/chat/campaign_001", json={
+            "session_id": "spell_test", "character_id": "char_001", "message": "I cast Fireball.",
+        }).json()
+        assert action["narration"] == "A bead of flame streaks forward."
+        assert "relevant_spells" in captured["context"]
+        assert "Fireball" in captured["context"]
+
+
+def test_campaign_control_commands_and_permissions():
+    with TestClient(app) as client:
+        client.post("/demo/bootstrap")
+        help_result = client.post("/chat/campaign_001", json={
+            "session_id": "control_test", "player_id": "player_1", "message": "/帮助",
+        }).json()
+        assert help_result["kind"] == "command"
+        assert help_result["command"] == "help"
+
+        denied = client.post("/chat/campaign_001", json={
+            "session_id": "control_test", "player_id": "player_1", "message": "/暂停",
+        }).json()
+        assert not denied["ok"]
+        assert "仅限 DM" in denied["narration"]
+
+        paused = client.post("/chat/campaign_001", json={
+            "session_id": "control_test", "message": "/暂停",
+        }).json()
+        assert paused["ok"]
+        assert paused["command"] == "pause"
+        assert client.get("/campaigns/campaign_001/status").json()["status"] == "paused"
+        assert len(client.get("/campaigns/campaign_001/checkpoints").json()) >= 1
+
+        blocked = client.post("/chat/campaign_001", json={
+            "session_id": "control_test", "player_id": "player_1", "message": "I inspect the gate.",
+        }).json()
+        assert not blocked["ok"]
+        assert blocked["command"] == "paused"
+
+        resumed = client.post("/chat/campaign_001", json={
+            "session_id": "control_test", "message": "/继续",
+        }).json()
+        assert resumed["ok"]
+        assert client.get("/campaigns/campaign_001/status").json()["status"] == "active"
+
+
+def test_campaign_memory_three_stage_pipeline(monkeypatch):
+    captured = {}
+
+    def fake_graph(state):
+        captured["graph_state"] = state
+        return {
+            "intent": {"intent_type": "character_action"},
+            "ruling": {"requires_roll": False},
+            "proposed_actions": [{"tool": "append_campaign_event", "args": {}}],
+            "memory_write_plan": {"extract_after_event": True, "intent_type": "character_action", "skip": False},
+        }
+
+    monkeypatch.setattr("app.services.dm_graph.invoke", fake_graph)
+    monkeypatch.setattr("app.services.chat_completion", lambda messages: "The guard accepts your promise.")
+    with TestClient(app) as client:
+        client.post("/demo/bootstrap")
+        old_event = client.post("/campaigns/campaign_001/events", json={
+            "session_id": "memory_pipeline",
+            "event_type": "story",
+            "content": "The silver key was hidden beneath the gate.",
+            "actors": ["char_001"],
+            "metadata": {},
+        }).json()
+        backfill = client.post("/campaigns/campaign_001/memories/backfill").json()
+        assert backfill["events_scanned"] >= 1
+        memories = client.get("/campaigns/campaign_001/memories", params={"query": "silver key"}).json()
+        assert any(item["source_event_id"] == old_event["id"] for item in memories)
+
+        result = client.post("/chat/campaign_001", json={
+            "session_id": "memory_pipeline",
+            "character_id": "char_001",
+            "message": "I promise to investigate the missing guard.",
+        }).json()
+        assert result["narration"] == "The guard accepts your promise."
+        assert "memory_context" in captured["graph_state"]
+        assert any("silver key" in item["content"] for item in captured["graph_state"]["memory_context"]["memories"])
+        threads = client.get("/campaigns/campaign_001/threads").json()
+        assert any("promise" in item["description"].lower() for item in threads)
+        command = client.post("/chat/campaign_001", json={
+            "session_id": "memory_pipeline", "player_id": "player", "message": "/memory silver key",
+        }).json()
+        assert command["command"] == "memory"
