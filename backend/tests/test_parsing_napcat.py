@@ -185,6 +185,42 @@ def test_napcat_group_turn_notification_ats_bound_player(monkeypatch):
         assert not sent
 
 
+def test_napcat_active_campaign_switches_bound_character(monkeypatch):
+    used = {}
+
+    class FakeClient:
+        self_id = "123"
+
+    monkeypatch.setattr("app.main.NapCatClient.from_settings", lambda: FakeClient())
+    monkeypatch.setattr("app.main.download_attachments", lambda client, payload: (Path(tempfile.mkdtemp()), [], []))
+    monkeypatch.setattr(
+        "app.main.process_message",
+        lambda db, campaign, session_id, character_id, text, **kwargs: (
+            used.update(campaign_id=campaign.id, character_id=character_id) or {"narration": "ok"}
+        ),
+    )
+    monkeypatch.setattr(settings, "napcat_token", "")
+
+    with TestClient(app) as client:
+        client.post("/demo/bootstrap")
+        campaign = client.post("/campaigns", json={"name": "Switched Campaign"}).json()
+        character = client.post("/characters", json={
+            "campaign_id": campaign["id"], "player_name": "Player",
+            "character_name": "Switched Hero", "data": {},
+        }).json()
+        client.put("/napcat/bindings/456", json={
+            "campaign_id": campaign["id"], "character_id": character["id"],
+        })
+        client.put(f"/napcat/active-campaign/{campaign['id']}")
+        response = client.post("/napcat/callback", json={
+            "post_type": "message", "message_type": "private", "user_id": 456,
+            "message": [{"type": "text", "data": {"text": "check"}}],
+        })
+        assert response.status_code == 200
+        assert used == {"campaign_id": campaign["id"], "character_id": character["id"]}
+        client.put("/napcat/active-campaign/campaign_001")
+
+
 def test_napcat_group_context_includes_reply_mentions_and_history(monkeypatch):
     used = {}
 

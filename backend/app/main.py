@@ -8,14 +8,14 @@ from fastapi.responses import FileResponse
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from app.db.database import Base, engine, get_db
+from app.db.database import Base, SessionLocal, engine, get_db
 from app.db.models import (Campaign, CampaignCheckpoint, CampaignEntity, CampaignEvent, CampaignMemory,
                            CampaignSetting, CampaignSettingComment, CampaignSettingDraft, CampaignSettingHistory, CampaignSummary,
                            CampaignThread, Character, CharacterChange, CompendiumEntry, NapCatCharacterBinding)
 from app.schemas import (CampaignCreate, CampaignPatch, CharacterCreate, CharacterPatch,
                          CharacterBuildRequest, ChatRequest, DiceRequest, EventCreate,
                          NapCatBindingUpsert, SettingDraftCreate, CampaignPackageImport, SettingCommentCreate,
-                         ActorRoleplayPatch, ActorPresencePatch)
+                         ActorRoleplayPatch, ActorPresencePatch, CharacterQQBindingsPatch)
 from app.services import (append_event, create_summary, ingest_compendium, ingest_rules,
                           search_rules, serialize, uid)
 from app.tools.dice import roll_dice
@@ -39,11 +39,18 @@ from app.campaign_editor import (
     setting_timeline, setting_to_npc_character, undo_latest_draft, validate_settings,
 )
 from app.actor_manager import list_actors, roleplay_brief, set_presence, update_roleplay
+from app.qq_bindings import (
+    active_napcat_campaign, active_napcat_campaign_id, backfill_character_binding_mirrors,
+    bind_qq, delete_character_and_bindings, find_binding,
+    set_active_napcat_campaign, sync_character_bindings, unbind_qq,
+)
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     Base.metadata.create_all(bind=engine)
+    with SessionLocal() as db:
+        backfill_character_binding_mirrors(db)
     if engine.dialect.name == "postgresql":
         with engine.begin() as connection:
             connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
@@ -138,19 +145,19 @@ async def napcat_callback(
     if not text:
         return {"ok": True, "ignored": "empty_message", "attachment_errors": attachment_errors}
 
-    campaign = db.get(Campaign, settings.napcat_campaign_id)
+    campaign = active_napcat_campaign(db) or db.get(Campaign, settings.napcat_campaign_id)
     if not campaign:
         raise HTTPException(404, f"NapCat campaign not found: {settings.napcat_campaign_id}")
     character_id = settings.napcat_character_id or None
-    if character_id and not db.get(Character, character_id):
+    default_character = db.get(Character, character_id) if character_id else None
+    if default_character and default_character.campaign_id != campaign.id:
+        character_id = None
+    elif character_id and not default_character:
         character_id = None
     user_id = str(payload.get("user_id", "")).strip() or "user"
     group_id = str(payload.get("group_id", "")).strip()
     session_id = f"napcat_group_{group_id}_{user_id}" if group_id else f"napcat_private_{user_id}"
-    binding = db.scalar(select(NapCatCharacterBinding).where(
-        NapCatCharacterBinding.campaign_id == campaign.id,
-        NapCatCharacterBinding.qq_user_id == user_id,
-    ))
+    binding = find_binding(db, campaign.id, user_id)
     if binding:
         character_id = binding.character_id
     message_context = {
@@ -210,13 +217,30 @@ def list_napcat_bindings(campaign_id: str | None = None, db: Session = Depends(g
     return [serialize_binding(binding, db) for binding in db.scalars(query).all()]
 
 
+@app.get("/napcat/active-campaign")
+def get_active_napcat_campaign(db: Session = Depends(get_db)):
+    campaign = active_napcat_campaign(db) or db.get(Campaign, settings.napcat_campaign_id)
+    if not campaign:
+        raise HTTPException(404, "NapCat active campaign not found")
+    return serialize(campaign)
+
+
+@app.put("/napcat/active-campaign/{campaign_id}")
+def switch_active_napcat_campaign(campaign_id: str, db: Session = Depends(get_db)):
+    campaign = db.get(Campaign, campaign_id)
+    if not campaign:
+        raise HTTPException(404, "Campaign not found")
+    return serialize(set_active_napcat_campaign(db, campaign))
+
+
 @app.get("/napcat/bindings/{qq_user_id}")
 def get_napcat_binding(
     qq_user_id: str,
-    campaign_id: str = Query(default=settings.napcat_campaign_id),
+    campaign_id: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ):
-    binding = find_napcat_binding(db, campaign_id, qq_user_id)
+    campaign_id = campaign_id or active_napcat_campaign_id(db, settings.napcat_campaign_id)
+    binding = find_binding(db, campaign_id, qq_user_id)
     if not binding:
         raise HTTPException(404, "QQ user is not bound to a character in this campaign")
     return serialize_binding(binding, db)
@@ -232,40 +256,24 @@ def upsert_napcat_binding(qq_user_id: str, req: NapCatBindingUpsert, db: Session
         raise HTTPException(404, "Character not found")
     if character.campaign_id != req.campaign_id:
         raise HTTPException(400, "Character does not belong to the requested campaign")
-    binding = find_napcat_binding(db, req.campaign_id, qq_user_id)
-    if not binding:
-        binding = NapCatCharacterBinding(
-            id=uid("napcat_binding"),
-            campaign_id=req.campaign_id,
-            qq_user_id=qq_user_id,
-            character_id=req.character_id,
-        )
-        db.add(binding)
-    binding.character_id = req.character_id
-    binding.display_name = req.display_name.strip() or None
-    binding.note = req.note.strip() or None
-    db.commit()
+    try:
+        binding = bind_qq(db, req.campaign_id, qq_user_id, character, req.display_name, req.note)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
     return serialize_binding(binding, db)
 
 
 @app.delete("/napcat/bindings/{qq_user_id}", status_code=204)
 def delete_napcat_binding(
     qq_user_id: str,
-    campaign_id: str = Query(default=settings.napcat_campaign_id),
+    campaign_id: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ):
-    binding = find_napcat_binding(db, campaign_id, qq_user_id)
+    campaign_id = campaign_id or active_napcat_campaign_id(db, settings.napcat_campaign_id)
+    binding = find_binding(db, campaign_id, qq_user_id)
     if not binding:
         raise HTTPException(404, "QQ user is not bound to a character in this campaign")
-    db.delete(binding)
-    db.commit()
-
-
-def find_napcat_binding(db: Session, campaign_id: str, qq_user_id: str) -> NapCatCharacterBinding | None:
-    return db.scalar(select(NapCatCharacterBinding).where(
-        NapCatCharacterBinding.campaign_id == campaign_id,
-        NapCatCharacterBinding.qq_user_id == qq_user_id.strip(),
-    ))
+    unbind_qq(db, campaign_id, qq_user_id)
 
 
 def serialize_binding(binding: NapCatCharacterBinding, db: Session) -> dict:
@@ -483,9 +491,19 @@ def create_character(req: CharacterCreate, db: Session = Depends(get_db)):
         raise HTTPException(404, "Campaign not found")
     payload = req.model_dump()
     payload["data"] = normalize_character_inventory(payload["data"])
+    payload["data"].setdefault("integrations", {}).setdefault("qq_user_ids", [])
     character = Character(id=uid("char"), **payload)
     db.add(character)
     db.commit()
+    qq_user_ids = ((character.data.get("integrations") or {}).get("qq_user_ids")
+                   if isinstance(character.data.get("integrations"), dict) else None)
+    if qq_user_ids is not None:
+        try:
+            sync_character_bindings(db, character, qq_user_ids)
+        except ValueError as exc:
+            db.delete(character)
+            db.commit()
+            raise HTTPException(400, str(exc)) from exc
     return serialize(character)
 
 
@@ -650,8 +668,42 @@ def patch_character(character_id: str, req: CharacterPatch, db: Session = Depend
     character = db.get(Character, character_id)
     if not character:
         raise HTTPException(404, "Character not found")
+    qq_user_ids = ((req.data.get("integrations") or {}).get("qq_user_ids")
+                   if isinstance(req.data.get("integrations"), dict) else None)
+    if qq_user_ids is not None and any(not str(item).strip().isdigit() for item in qq_user_ids):
+        raise HTTPException(400, "QQ user ID must contain digits only")
     change = update_character(db, character, req.data, req.reason, req.change_type, req.rule_refs)
+    if qq_user_ids is not None:
+        try:
+            sync_character_bindings(db, character, qq_user_ids)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
     return {"character": serialize(character), "change": serialize(change)}
+
+
+@app.patch("/characters/{character_id}/qq-bindings")
+def patch_character_qq_bindings(
+    character_id: str, req: CharacterQQBindingsPatch, db: Session = Depends(get_db),
+):
+    character = db.get(Character, character_id)
+    if not character:
+        raise HTTPException(404, "Character not found")
+    try:
+        bindings = sync_character_bindings(db, character, req.qq_user_ids)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {
+        "character": serialize(character),
+        "bindings": [serialize_binding(binding, db) for binding in bindings],
+    }
+
+
+@app.delete("/characters/{character_id}", status_code=204)
+def delete_character(character_id: str, db: Session = Depends(get_db)):
+    character = db.get(Character, character_id)
+    if not character:
+        raise HTTPException(404, "Character not found")
+    delete_character_and_bindings(db, character)
 
 
 @app.get("/characters/{character_id}/changes")
@@ -825,5 +877,5 @@ def demo_character() -> dict:
                 "effects": [{"effect_type": "healing", "formula": "2d4+2"}],
             },
         ],
-        "conditions": [], "notes": {},
+        "conditions": [], "notes": {}, "integrations": {"qq_user_ids": []},
     })

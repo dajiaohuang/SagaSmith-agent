@@ -50,6 +50,7 @@ export default function Home() {
   const [actorKind, setActorKind] = useState("npc");
   const [actorPurpose, setActorPurpose] = useState("");
   const [actorInstructions, setActorInstructions] = useState("");
+  const [qqDrafts, setQqDrafts] = useState<Record<string, string>>({});
 
   const character = characters.find((item) => item.id === characterId) || characters[0];
   const hp = character?.data?.combat;
@@ -80,6 +81,7 @@ export default function Home() {
       const chosen = list.find((item: Json) => item.id === campaignId) || list[0];
       if (chosen) {
         setCampaignId(chosen.id);
+        await call(`/napcat/active-campaign/${chosen.id}`, { method: "PUT" });
         await refreshCampaign(chosen.id);
         setNotice(`已连接 ${API}`);
       } else setNotice("尚无战役，请先初始化示例数据");
@@ -173,6 +175,28 @@ export default function Home() {
     });
   }
 
+  async function switchCampaign(id: string) {
+    setCampaignId(id);
+    setBusy(true);
+    try {
+      await call(`/napcat/active-campaign/${id}`, { method: "PUT" });
+      await refreshCampaign(id);
+      setNotice("已切换战役与 QQ 角色绑定上下文");
+    } catch (error) {
+      setNotice(`切换战役失败：${String(error)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function updateCharacterQq(character: Json) {
+    const text = qqDrafts[character.id] ?? (character.data?.integrations?.qq_user_ids || []).join(", ");
+    const qq_user_ids = text.split(/[,，\s]+/).map((item) => item.trim()).filter(Boolean);
+    await action("角色 QQ 绑定已更新", () => call(`/characters/${character.id}/qq-bindings`, {
+      method: "PATCH", body: JSON.stringify({ qq_user_ids }),
+    }));
+  }
+
   const modes: Record<string, string> = { free: "自由扮演", turn_based: "回合制", combat: "战斗", campaign_edit: "战役编辑" };
   const quick = [
     ["/status", "状态"], ["/turns", "进入回合"], ["/combat", "进入战斗"], ["/endcombat", "结束战斗"],
@@ -184,7 +208,7 @@ export default function Home() {
       <header>
         <div><span className="eyebrow">LOCAL-FIRST CAMPAIGN OS</span><h1>暮色编年史</h1></div>
         <div className="header-actions">
-          <select value={campaignId} onChange={async (event) => { setCampaignId(event.target.value); await refreshCampaign(event.target.value); }}>
+          <select value={campaignId} onChange={(event) => switchCampaign(event.target.value)}>
             {campaigns.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}
           </select>
           <span className="status"><i />{notice}</span>
@@ -304,7 +328,7 @@ export default function Home() {
           <div className="search large"><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="输入规则、法术名或关键词"/><button onClick={() => search("rule")}>查规则</button><button className="secondary" onClick={() => search("spell")}>查法术</button></div>
           {searchResults.map((item, index) => <article className="list-card" key={item.id || index}><small>{item.source || item.level || item.entry_type || "RESULT"}</small><h3>{item.name || item.section || item.chapter}</h3><p>{item.description || item.chunk_text || short(item, 420)}</p></article>)}
         </section>
-        <aside className="panel content-panel"><p className="label">CHARACTER SHEETS</p><h2>战役角色</h2>{characters.map((item) => <article className="character-card" key={item.id}><div className="mini-portrait">{item.character_name?.slice(0, 1)}</div><div><h3>{item.character_name}</h3><p>{item.player_name || "DM"} · v{item.version}</p><span>HP {item.data?.combat?.current_hp ?? "-"}/{item.data?.combat?.max_hp ?? "-"} · AC {item.data?.combat?.armor_class ?? "-"}</span></div></article>)}</aside>
+        <aside className="panel content-panel"><p className="label">CHARACTER SHEETS</p><h2>战役角色</h2>{characters.map((item) => <article className="character-card" key={item.id}><div className="mini-portrait">{item.character_name?.slice(0, 1)}</div><div><h3>{item.character_name}</h3><p>{item.player_name || "DM"} · v{item.version}</p><span>HP {item.data?.combat?.current_hp ?? "-"}/{item.data?.combat?.max_hp ?? "-"} · AC {item.data?.combat?.armor_class ?? "-"}</span><label>绑定 QQ（逗号分隔）<input value={qqDrafts[item.id] ?? (item.data?.integrations?.qq_user_ids || []).join(", ")} onChange={(event) => setQqDrafts((old) => ({ ...old, [item.id]: event.target.value }))}/></label><button onClick={() => updateCharacterQq(item)}>更新绑定</button><button className="danger" onClick={() => action("角色与绑定已删除", () => call(`/characters/${item.id}`, { method: "DELETE" }))}>删除角色</button></div></article>)}</aside>
       </section>}
     </main>
   );

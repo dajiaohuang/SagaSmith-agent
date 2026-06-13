@@ -95,6 +95,10 @@ class ActorPresencePatch(BaseModel):
     scene: str = ""
 
 
+class CharacterQQBindingsPatch(BaseModel):
+    qq_user_ids: list[str] = Field(default_factory=list)
+
+
 class ChatRequest(BaseModel):
     session_id: str | None = None
     player_id: str | None = None

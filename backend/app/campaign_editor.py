@@ -345,6 +345,7 @@ def setting_to_npc_character(db: Session, setting: CampaignSetting) -> Character
             "encounter": content.get("encounter") or {"present": False, "scene": ""},
             "conditions": [],
             "notes": {"campaign_setting_id": setting.id, "summary": setting.summary},
+            "integrations": {"qq_user_ids": []},
         },
     )
     db.add(character)

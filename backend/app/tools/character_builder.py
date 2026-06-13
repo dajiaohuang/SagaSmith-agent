@@ -84,6 +84,7 @@ def build_character_data(raw: dict) -> dict:
         "encounter": {"present": True, **copy.deepcopy(raw.get("encounter", {}))},
         "conditions": [],
         "notes": copy.deepcopy(raw.get("notes", {})),
+        "integrations": {"qq_user_ids": []},
     }
 
 

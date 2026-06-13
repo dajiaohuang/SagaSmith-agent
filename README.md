@@ -55,6 +55,8 @@ LangGraph orchestrates the DM reasoning phase, DeepSeek generates narrative resp
 - Supports character versions, state-change history, spells, features, and background information.
 - Exports character data back into an Excel character sheet.
 - Maintains QQ user-to-character bindings for each campaign.
+- QQ bindings are campaign-specific. Switching campaigns in the WebUI also switches NapCat's active campaign and the character bound to each QQ user there.
+- Character cards expose bound accounts in `data.integrations.qq_user_ids`; they can be edited in the WebUI or through `PATCH /characters/{id}/qq-bindings`, and deleting a character removes its bindings.
 
 ### NPC, Monster, and Dice Assistant Modes
 
@@ -350,7 +352,7 @@ uv run scripts/install_parse_backends.py --backend markitdown
 | Open story threads | `GET /campaigns/{campaign_id}/threads` |
 | Backfill historical memory | `POST /campaigns/{campaign_id}/memories/backfill` |
 | Checkpoints | `GET /campaigns/{campaign_id}/checkpoints` |
-| QQ character bindings | `/napcat/bindings` |
+| QQ bindings and active campaign | `/napcat/bindings`, `/napcat/active-campaign`, `PATCH /characters/{id}/qq-bindings` |
 
 ## Campaign Commands
 

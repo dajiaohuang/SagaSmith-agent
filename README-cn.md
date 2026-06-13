@@ -55,6 +55,8 @@
 - 支持角色版本、状态修改日志、法术、特性和背景资料。
 - 可将角色数据回填并导出为 Excel 人物卡。
 - 支持维护 QQ 用户与战役角色卡的绑定关系。
+- 每个战役独立维护 QQ 与角色卡绑定；WebUI 切换战役时，NapCat 活动战役和该 QQ 使用的绑定角色会一起切换。
+- 角色卡通过 `data.integrations.qq_user_ids` 显示绑定 QQ，可在 WebUI 或 `PATCH /characters/{id}/qq-bindings` 修改；删除角色会自动清理绑定。
 
 ### NPC、怪物与骰娘模式
 
@@ -350,7 +352,7 @@ uv run scripts/install_parse_backends.py --backend markitdown
 | 开放剧情线 | `GET /campaigns/{campaign_id}/threads` |
 | 历史记忆回填 | `POST /campaigns/{campaign_id}/memories/backfill` |
 | 检查点 | `GET /campaigns/{campaign_id}/checkpoints` |
-| QQ 角色绑定 | `/napcat/bindings` |
+| QQ 角色绑定与活动战役 | `/napcat/bindings`、`/napcat/active-campaign`、`PATCH /characters/{id}/qq-bindings` |
 
 ## 战役控制命令
 

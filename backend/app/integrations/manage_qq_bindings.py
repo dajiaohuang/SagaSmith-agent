@@ -7,7 +7,7 @@ from sqlalchemy import select
 from app.config import settings
 from app.db.database import Base, SessionLocal, engine
 from app.db.models import Character, NapCatCharacterBinding
-from app.services import uid
+from app.qq_bindings import bind_qq, unbind_qq
 
 
 def parser() -> argparse.ArgumentParser:
@@ -58,8 +58,7 @@ def main() -> None:
         if args.action == "unbind":
             if not binding:
                 raise SystemExit("Binding not found.")
-            db.delete(binding)
-            db.commit()
+            unbind_qq(db, args.campaign, args.qq_user_id)
             print(f"Unbound QQ {args.qq_user_id} from campaign {args.campaign}.")
             return
 
@@ -68,18 +67,7 @@ def main() -> None:
         character = db.get(Character, args.character_id)
         if not character or character.campaign_id != args.campaign:
             raise SystemExit("Character was not found in the requested campaign.")
-        if not binding:
-            binding = NapCatCharacterBinding(
-                id=uid("napcat_binding"),
-                campaign_id=args.campaign,
-                qq_user_id=args.qq_user_id,
-                character_id=args.character_id,
-            )
-            db.add(binding)
-        binding.character_id = args.character_id
-        binding.display_name = args.name.strip() or None
-        binding.note = args.note.strip() or None
-        db.commit()
+        bind_qq(db, args.campaign, args.qq_user_id, character, args.name, args.note)
         print(f"Bound QQ {args.qq_user_id} to {character.character_name} ({character.id}).")
 
 
