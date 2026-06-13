@@ -258,10 +258,15 @@ Windows 下可使用：
 
 ```text
 login_napcat_dnd.bat
+run_napcat_installedqq.bat
 run_napcat_callback.bat
 run_napcat_localqq.bat
 manage_qq_bindings.bat
 ```
+
+- `login_napcat_dnd.bat`：推荐入口，同时启动 DM callback 并打开已安装 QQ。
+- `run_napcat_installedqq.bat`：只启动 NapCat 注入后的已安装 QQ。
+- 为 QQ 启动脚本追加 `--check`，可只检查安装路径而不打开 QQ。
 
 NapCat OneBot HTTP Post URL：
 

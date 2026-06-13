@@ -258,10 +258,15 @@ Windows helper scripts:
 
 ```text
 login_napcat_dnd.bat
+run_napcat_installedqq.bat
 run_napcat_callback.bat
 run_napcat_localqq.bat
 manage_qq_bindings.bat
 ```
+
+- `login_napcat_dnd.bat`: recommended entry point; starts the DM callback and installed QQ.
+- `run_napcat_installedqq.bat`: starts only the NapCat-injected installed QQ.
+- Append `--check` to a QQ launcher to validate its installation path without opening QQ.
 
 NapCat OneBot HTTP Post URL:
 

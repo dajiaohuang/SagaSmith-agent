@@ -5,6 +5,7 @@ chcp 65001 >nul
 set "ROOT=%~dp0"
 set "NAPCAT_SOURCE=%NAPCAT_SOURCE_DIR%"
 if "%NAPCAT_SOURCE%"=="" if exist "%ROOT%tools\napcat\runtime" set "NAPCAT_SOURCE=%ROOT%tools\napcat\runtime"
+if "%NAPCAT_SOURCE%"=="" if exist "%ROOT%tools\napcat\pkg" set "NAPCAT_SOURCE=%ROOT%tools\napcat\pkg"
 set "CALLBACK_PORT=8010"
 
 echo [1/3] Checking DND DM callback service...
@@ -39,8 +40,10 @@ if "%NAPCAT_SOURCE%"=="" (
 )
 set "NAPCAT_LAUNCHER="
 for /r "%NAPCAT_SOURCE%" %%F in (launcher-user.bat) do (
-  set "NAPCAT_LAUNCHER=%%~fF"
-  goto launcher_found
+  if exist "%%~fF" (
+    set "NAPCAT_LAUNCHER=%%~fF"
+    goto launcher_found
+  )
 )
 :launcher_found
 if "%NAPCAT_LAUNCHER%"=="" (
@@ -52,6 +55,11 @@ if "%NAPCAT_LAUNCHER%"=="" (
 echo [3/3] Starting NapCat QQ login window...
 echo After QQ opens, scan the QR code or complete the normal QQ login.
 echo OneBot callback: http://127.0.0.1:%CALLBACK_PORT%/napcat/callback
+if /i "%~1"=="--check" (
+  echo Startup check passed. NapCat launcher:
+  echo   %NAPCAT_LAUNCHER%
+  exit /b 0
+)
 for %%F in ("%NAPCAT_LAUNCHER%") do cd /d "%%~dpF"
 call "%NAPCAT_LAUNCHER%" %*
 
