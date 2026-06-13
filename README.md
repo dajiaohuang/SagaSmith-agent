@@ -1,73 +1,75 @@
+**English** | [简体中文](README-cn.md)
+
 # DND DM Agent
 
-一个面向长期 DND 战役的本地优先 AI 地城主系统。
+A local-first AI Dungeon Master system designed for long-running DND campaigns.
 
-它不只负责生成一段 DM 叙事，还维护角色卡、战役事件、结构化记忆、剧情线、规则书、法术目录与检查点，并可通过 NapCat 接入 QQ 群聊和私聊。
+It does more than generate DM narration. The system maintains character sheets, campaign events, structured memories, story threads, rulebooks, spell catalogs, and checkpoints, while supporting QQ group and private chat through NapCat.
 
-系统使用 LangGraph 编排 DM 推理阶段，使用 DeepSeek 生成叙事，使用本地 BGE-M3 完成规则和战役记忆的语义检索。关键状态变化由确定性 Python 工具执行并记录，LLM 不直接修改数据库。
+LangGraph orchestrates the DM reasoning phase, DeepSeek generates narrative responses, and a local BGE-M3 model retrieves rules and campaign memories. Deterministic Python tools execute important state changes, so the LLM never modifies canonical game state directly.
 
-## 核心能力
+## Core Capabilities
 
-### 可持续的战役记忆
+### Persistent Campaign Memory
 
-- 使用 append-only 事件日志保留完整战役历史。
-- 自动从新事件中提取结构化记忆、参与实体和开放剧情线。
-- 结合 BGE-M3 语义相似度、关键词、重要度和当前会话进行记忆召回。
-- 将相关记忆、实体状态、剧情线、摘要和最近事件注入 DM 推理上下文。
-- 支持对旧战役事件执行增量、幂等的记忆回填。
-- 使用摘要压缩长会话，并通过检查点保存战役和全部角色状态。
+- Preserves the complete campaign history as an append-only event log.
+- Automatically extracts structured memories, participating entities, and open story threads from new events.
+- Retrieves memories using BGE-M3 semantic similarity, keywords, importance, and current-session relevance.
+- Injects relevant memories, entity state, story threads, summaries, and recent events into DM reasoning.
+- Supports incremental and idempotent backfilling of memory from existing campaign events.
+- Compresses long sessions with summaries and saves campaign plus character state through checkpoints.
 
-### 可审计的 DM 推理
+### Auditable DM Reasoning
 
-- LangGraph 依次执行记忆检索、意图解析、规则裁定和行动规划。
-- 支持角色行动、战斗、社交、休息、物品使用与施法等意图。
-- 骰子、治疗、物品消耗和角色状态修改由工具执行。
-- 每次角色修改写入 change log，每次行动写入 campaign event。
-- 事件会记录使用过的规则、法术、记忆、摘要、角色版本和图规划结果。
-- DeepSeek 未配置或暂时不可用时，确定性工具和降级回复仍可工作。
+- LangGraph runs memory retrieval, intent parsing, rules arbitration, and action planning.
+- Recognizes character, combat, social, rest, inventory, and spellcasting actions.
+- Executes dice rolls, healing, item consumption, and character updates through deterministic tools.
+- Records every character modification in a change log and every action in the campaign event log.
+- Stores the rules, spells, memories, summaries, character version, and graph plan used for each event.
+- Keeps deterministic tools and fallback responses available when DeepSeek is not configured or temporarily unavailable.
 
-### 角色卡与车卡
+### Character Creation and Sheets
 
-- 从结构化请求创建 DND 5E 角色卡。
-- 根据 Excel 人物卡模板提取并实现购点、属性调整值、熟练加值、技能、豁免、HP、AC 与施法属性规则。
-- 支持角色版本、状态修改日志、背包、法术、特性和背景资料。
-- 可将角色数据回填并导出为 Excel 人物卡。
-- 支持维护 QQ 用户与战役角色卡的绑定关系。
+- Creates structured DND 5E character sheets from API requests.
+- Implements point buy, ability modifiers, proficiency bonus, skills, saving throws, HP, AC, and spellcasting calculations extracted from an Excel character-sheet template.
+- Supports character versions, state-change history, inventory, spells, features, and background information.
+- Exports character data back into an Excel character sheet.
+- Maintains QQ user-to-character bindings for each campaign.
 
-### 规则书、法术与多文件解析
+### Rulebooks, Spells, and Multi-file Parsing
 
-- 解析文本、Markdown、JSON、CSV、HTML、DOCX、PPTX、PDF 和 ZIP。
-- 可选安装 PaddleOCR、PDF OCR、Whisper 与 MarkItDown 后端。
-- 将解析后的规则书切块并使用本地 BGE-M3 建立检索索引。
-- 合并多个 Excel 法术表，支持中英文名称、关键词和自然语言直接查法术。
-- 在施法相关行动中自动把匹配法术条目加入 DM 上下文。
+- Parses text, Markdown, JSON, CSV, HTML, DOCX, PPTX, PDF, and ZIP files.
+- Supports optional PaddleOCR, PDF OCR, Whisper, and MarkItDown backends.
+- Chunks parsed rulebooks and indexes them with local BGE-M3 embeddings.
+- Merges multiple Excel spell lists and supports Chinese names, English names, keywords, and natural-language spell lookup.
+- Automatically adds relevant spell entries to DM context during spellcasting actions.
 
-### QQ / NapCat 接入
+### QQ and NapCat Integration
 
-- 支持 NapCat / OneBot v11 私聊与群聊。
-- 群聊默认仅在 `@机器人` 时触发，私聊直接触发。
-- 白名单为空时允许所有用户使用。
-- 支持下载并解析 QQ 消息附件。
-- DM 控制命令和普通玩家权限分离。
-- 提供 Windows 一键启动、登录和 QQ 角色绑定脚本。
+- Supports NapCat / OneBot v11 private and group messages.
+- Group messages trigger only when the bot is mentioned by default; private messages trigger directly.
+- An empty allowlist permits all users.
+- Downloads and parses attachments sent through QQ.
+- Separates DM control permissions from regular player permissions.
+- Includes Windows launch, login, and QQ character-binding scripts.
 
-## LangGraph 推理图
+## LangGraph Reasoning Flow
 
-当前 LangGraph 负责推理和行动规划，工具执行、状态落库及记忆索引由服务层完成。这种设计让自然语言推理保持灵活，同时让角色数值和战役状态可验证、可回滚、可审计。
+LangGraph currently owns reasoning and action planning. Tool execution, state persistence, and memory indexing remain in the service layer. This keeps natural-language reasoning flexible while making character values and campaign state verifiable, recoverable, and auditable.
 
 ```mermaid
 flowchart TD
-    A["玩家消息 / QQ @ / Web 请求"] --> B["统一消息路由"]
-    B --> C{"控制命令或直接查询?"}
-    C -->|"保存 / 暂停 / 继续"| D["战役控制与检查点"]
-    C -->|"法术 / 记忆 / 剧情线"| E["目录与记忆直接查询"]
-    C -->|"剧情行动"| F["构建 DM 上下文"]
+    A["Player message / QQ mention / Web request"] --> B["Unified message router"]
+    B --> C{"Control command or direct lookup?"}
+    C -->|"Save / Pause / Resume"| D["Campaign control and checkpoint"]
+    C -->|"Spell / Memory / Story thread"| E["Catalog and memory lookup"]
+    C -->|"Narrative action"| F["Build DM context"]
 
-    F --> F1["角色卡与最近事件"]
-    F --> F2["战役摘要与开放剧情线"]
-    F --> F3["BGE-M3 规则检索"]
-    F --> F4["BGE-M3 战役记忆检索"]
-    F --> F5["法术关键词匹配"]
+    F --> F1["Character sheet and recent events"]
+    F --> F2["Campaign summaries and open threads"]
+    F --> F3["BGE-M3 rule retrieval"]
+    F --> F4["BGE-M3 campaign memory retrieval"]
+    F --> F5["Spell keyword matching"]
 
     F1 --> G
     F2 --> G
@@ -75,55 +77,55 @@ flowchart TD
     F4 --> G
     F5 --> G
 
-    subgraph LG["LangGraph DM 推理"]
-        G["memory_retriever<br/>接收结构化记忆包"]
-        G --> H["intent_parser<br/>识别玩家意图"]
-        H --> I["rules_arbiter<br/>规则裁定"]
-        I --> J["action_planner<br/>行动与记忆写入计划"]
+    subgraph LG["LangGraph DM Reasoning"]
+        G["memory_retriever<br/>Receive structured memory package"]
+        G --> H["intent_parser<br/>Identify player intent"]
+        H --> I["rules_arbiter<br/>Resolve applicable rules"]
+        I --> J["action_planner<br/>Plan actions and memory writes"]
     end
 
-    J --> K{"确定性工具执行"}
-    K -->|"骰子 / 治疗 / 休息 / 物品"| L["更新角色卡并写入 change log"]
-    K -->|"通用剧情行动"| M["DeepSeek 生成 DM 叙事"]
-    L --> N["写入 campaign event"]
+    J --> K{"Deterministic tool execution"}
+    K -->|"Dice / Healing / Rest / Items"| L["Update character and write change log"]
+    K -->|"General narrative action"| M["DeepSeek generates DM narration"]
+    L --> N["Write campaign event"]
     M --> N
-    N --> O["自动提取结构化记忆、实体与剧情线"]
-    O --> P["下一轮推理可召回"]
+    N --> O["Extract structured memory, entities, and threads"]
+    O --> P["Available for the next reasoning turn"]
 ```
 
-## 战役记忆模型
+## Campaign Memory Model
 
-| 层级 | 作用 |
+| Layer | Purpose |
 | --- | --- |
-| `CampaignEvent` | 不可变的原始行动与结果日志，负责审计 |
-| `CampaignSummary` | 压缩会话或战役历史，降低上下文长度 |
-| `CampaignMemory` | 可检索的事实、决定、事件和剧情线记忆 |
-| `CampaignEntity` | 角色及其他实体的当前状态 |
-| `CampaignThread` | 尚未解决的任务、承诺和剧情线 |
-| `CampaignCheckpoint` | 保存战役配置与全部角色快照 |
+| `CampaignEvent` | Immutable raw action and result log for auditing |
+| `CampaignSummary` | Compressed session or campaign history |
+| `CampaignMemory` | Retrievable facts, decisions, events, and story-thread memories |
+| `CampaignEntity` | Current state of characters and other entities |
+| `CampaignThread` | Unresolved quests, promises, and story threads |
+| `CampaignCheckpoint` | Snapshot of campaign configuration and every character |
 
-常用记忆命令：
+Memory commands:
 
 ```text
-/记忆 银钥匙
-/剧情线
+/memory silver key
+/threads
 ```
 
-## 技术栈
+## Technology Stack
 
-- Backend: Python 3.12、FastAPI、SQLAlchemy、LangGraph
+- Backend: Python 3.12, FastAPI, SQLAlchemy, LangGraph
 - LLM: DeepSeek OpenAI-compatible API
-- Embedding: 本地 `BAAI/bge-m3`，1024 维向量
-- Storage: SQLite 本地模式，或 PostgreSQL + pgvector
-- Frontend: Next.js 16、React 19
+- Embeddings: local `BAAI/bge-m3`, 1024-dimensional vectors
+- Storage: local SQLite mode or PostgreSQL with pgvector
+- Frontend: Next.js 16, React 19
 - Integration: NapCat / OneBot v11
-- Tooling: uv、Docker Compose、pytest
+- Tooling: uv, Docker Compose, pytest
 
-## 快速开始
+## Quick Start
 
-### 本地后端
+### Local Backend
 
-需要 Python 3.12 和 [uv](https://docs.astral.sh/uv/)。
+Requires Python 3.12 and [uv](https://docs.astral.sh/uv/).
 
 ```powershell
 Copy-Item .env.example .env
@@ -134,12 +136,12 @@ $env:DATA_DIR="../data"
 uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-访问：
+Open:
 
-- API 文档：<http://127.0.0.1:8000/docs>
-- 健康检查：<http://127.0.0.1:8000/health>
+- API documentation: <http://127.0.0.1:8000/docs>
+- Health check: <http://127.0.0.1:8000/health>
 
-初始化示例战役：
+Initialize the demo campaign:
 
 ```powershell
 Invoke-RestMethod -Method Post http://127.0.0.1:8000/demo/bootstrap
@@ -147,7 +149,7 @@ Invoke-RestMethod -Method Post http://127.0.0.1:8000/ingest/compendium
 Invoke-RestMethod -Method Post http://127.0.0.1:8000/ingest/rules
 ```
 
-### 前端
+### Frontend
 
 ```powershell
 cd frontend
@@ -155,26 +157,26 @@ npm install
 npm run dev
 ```
 
-访问 <http://localhost:3000>。
+Open <http://localhost:3000>.
 
 ### Docker Compose
 
-Docker 模式会启动 PostgreSQL、pgvector、Redis、后端、worker、前端与 Adminer。
+Docker mode starts PostgreSQL, pgvector, Redis, the backend, worker, frontend, and Adminer.
 
 ```powershell
 Copy-Item .env.example .env
 docker compose up --build -d
 ```
 
-| 服务 | 地址 |
+| Service | URL |
 | --- | --- |
 | Web UI | <http://localhost:3000> |
 | API / Swagger | <http://localhost:8000/docs> |
 | Adminer | <http://localhost:8080> |
 
-## 配置
+## Configuration
 
-核心环境变量：
+Important environment variables:
 
 ```env
 DEEPSEEK_API_KEY=
@@ -193,13 +195,13 @@ NAPCAT_DM_USER_IDS=
 NAPCAT_REQUIRE_GROUP_AT=true
 ```
 
-- `NAPCAT_ALLOWED_USER_IDS` 为空：所有 QQ 用户可用。
-- `NAPCAT_DM_USER_IDS` 为空：QQ 用户均不能执行 DM 控制命令。
-- `NAPCAT_REQUIRE_GROUP_AT=true`：群聊必须 `@机器人`。
+- Empty `NAPCAT_ALLOWED_USER_IDS`: all QQ users may use the bot.
+- Empty `NAPCAT_DM_USER_IDS`: no QQ user may execute DM control commands.
+- `NAPCAT_REQUIRE_GROUP_AT=true`: group messages must mention the bot.
 
 ## NapCat / QQ
 
-Windows 下可使用：
+Windows helper scripts:
 
 ```text
 login_napcat_dnd.bat
@@ -208,32 +210,32 @@ run_napcat_localqq.bat
 manage_qq_bindings.bat
 ```
 
-NapCat OneBot HTTP Post URL：
+NapCat OneBot HTTP Post URL:
 
 ```text
 http://127.0.0.1:8010/napcat/callback
 ```
 
-维护 QQ 用户与角色卡绑定：
+Manage QQ user-to-character bindings:
 
 ```powershell
 manage_qq_bindings.bat characters
 manage_qq_bindings.bat list
-manage_qq_bindings.bat bind 123456789 char_001 --name 玩家昵称
+manage_qq_bindings.bat bind 123456789 char_001 --name PlayerName
 manage_qq_bindings.bat unbind 123456789
 ```
 
-NapCat 本体及运行时不包含在本仓库中，请自行安装并设置 `NAPCAT_SOURCE_DIR`，或调整启动脚本中的路径。
+NapCat and its runtime are not included in this repository. Install them separately and set `NAPCAT_SOURCE_DIR`, or place the runtime under `tools/napcat/runtime`.
 
-## 导入规则书与原始资料
+## Importing Rulebooks and Source Material
 
-公开仓库不包含第三方规则书、人物卡模板、法术表、真实战役数据库或生成后的角色卡。请将你有权使用的资料放入：
+The public repository does not include third-party rulebooks, character-sheet templates, spell spreadsheets, real campaign databases, or generated character sheets. Place materials you are authorized to use under:
 
 ```text
 data/raw/
 ```
 
-解析并导入规则书：
+Parse and ingest a rulebook:
 
 ```powershell
 curl.exe -X POST http://127.0.0.1:8000/parse/rulebooks `
@@ -241,7 +243,7 @@ curl.exe -X POST http://127.0.0.1:8000/parse/rulebooks `
   -F "system_version=DND_5E_2014"
 ```
 
-安装可选解析后端：
+Install optional parsing backends:
 
 ```powershell
 uv run scripts/install_parse_backends.py --backend pdf_ocr
@@ -249,39 +251,41 @@ uv run scripts/install_parse_backends.py --backend whisper
 uv run scripts/install_parse_backends.py --backend markitdown
 ```
 
-## 常用 API
+## Common API Endpoints
 
-| 功能 | API |
+| Feature | API |
 | --- | --- |
-| DM 对话 | `POST /chat/{campaign_id}` |
-| 多文件解析 | `POST /parse/files` |
-| 规则书解析入库 | `POST /parse/rulebooks` |
-| 规则检索 | `GET /rules/search` |
-| 法术检索 | `GET /spells` |
-| 创建角色卡 | `POST /characters/build` |
-| 导出人物卡 | `GET /characters/{character_id}/sheet` |
-| 战役事件 | `GET /campaigns/{campaign_id}/events` |
-| 战役记忆 | `GET /campaigns/{campaign_id}/memories` |
-| 实体状态 | `GET /campaigns/{campaign_id}/entities` |
-| 开放剧情线 | `GET /campaigns/{campaign_id}/threads` |
-| 历史记忆回填 | `POST /campaigns/{campaign_id}/memories/backfill` |
-| 检查点 | `GET /campaigns/{campaign_id}/checkpoints` |
-| QQ 角色绑定 | `/napcat/bindings` |
+| DM conversation | `POST /chat/{campaign_id}` |
+| Multi-file parsing | `POST /parse/files` |
+| Parse and ingest rulebooks | `POST /parse/rulebooks` |
+| Rule search | `GET /rules/search` |
+| Spell search | `GET /spells` |
+| Build a character | `POST /characters/build` |
+| Export a character sheet | `GET /characters/{character_id}/sheet` |
+| Campaign events | `GET /campaigns/{campaign_id}/events` |
+| Campaign memories | `GET /campaigns/{campaign_id}/memories` |
+| Entity state | `GET /campaigns/{campaign_id}/entities` |
+| Open story threads | `GET /campaigns/{campaign_id}/threads` |
+| Backfill historical memory | `POST /campaigns/{campaign_id}/memories/backfill` |
+| Checkpoints | `GET /campaigns/{campaign_id}/checkpoints` |
+| QQ character bindings | `/napcat/bindings` |
 
-## 战役控制命令
+## Campaign Commands
 
 ```text
-/帮助
-/状态
-/保存    DM only
-/暂停    DM only
-/继续    DM only
-/法术 火球术
-/记忆 银钥匙
-/剧情线
+/help
+/status
+/save       DM only
+/pause      DM only
+/resume     DM only
+/spell Fireball
+/memory silver key
+/threads
 ```
 
-## 测试
+Chinese command aliases such as `/帮助`, `/保存`, `/法术`, `/记忆`, and `/剧情线` are also supported.
+
+## Tests
 
 ```powershell
 cd backend
@@ -291,26 +295,26 @@ cd ../frontend
 npm run build
 ```
 
-## 项目结构
+## Project Structure
 
 ```text
 backend/app/
-  agents/dm_graph.py       LangGraph DM 推理图
-  campaign_memory.py       记忆提取、回填与召回
-  campaign_control.py      保存、暂停、继续与检查点
-  message_router.py        QQ 与 HTTP 共用的消息路由
-  services.py              上下文构建、工具执行与事件写入
-  parsing/                 多文件与多模态解析
-  rag/                     BGE-M3 embedding 与规则检索
-  tools/                   骰子、车卡、公式与法术目录
+  agents/dm_graph.py       LangGraph DM reasoning graph
+  campaign_memory.py       Memory extraction, backfill, and retrieval
+  campaign_control.py      Save, pause, resume, and checkpoints
+  message_router.py        Shared QQ and HTTP message routing
+  services.py              Context building, tool execution, and event writes
+  parsing/                 Multi-file and multimodal parsing
+  rag/                     BGE-M3 embeddings and rule retrieval
+  tools/                   Dice, character building, formulas, and spell catalog
 frontend/                  Next.js Web UI
-scripts/                   可选解析后端安装脚本
-data/                      本地规则、原始资料和运行数据
+scripts/                   Optional parsing-backend installers
+data/                      Local rules, source material, and runtime data
 ```
 
-## 当前边界
+## Current Boundaries
 
-- LangGraph 当前覆盖 DM 推理与规划流程，工具执行仍由服务层完成。
-- 结构化记忆提取当前以确定性规则为主，后续可增加 LLM 提取与人工确认。
-- 通用战斗回合、地图位置和完整遭遇管理仍需要继续扩展。
-- 本项目不附带 DND 规则书、人物卡模板、NapCat 或其他第三方受版权保护的资料。
+- LangGraph currently covers DM reasoning and planning; tools are still executed by the service layer.
+- Structured memory extraction is currently deterministic and can later be extended with LLM extraction and human review.
+- Full combat rounds, map positioning, and complete encounter management remain future work.
+- This project does not include DND rulebooks, character-sheet templates, NapCat, or other copyrighted third-party material.
