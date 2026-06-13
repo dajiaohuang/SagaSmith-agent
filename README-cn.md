@@ -19,6 +19,16 @@
 - 支持对旧战役事件执行增量、幂等的记忆回填。
 - 使用摘要压缩长会话，并通过检查点保存战役和全部角色状态。
 
+### 对话式战役编辑器
+
+- 提供仅 DM 可进入的战役编辑模式；该模式与正常游玩隔离，不推进回合，也不写入游玩事件。
+- 使用独立 LangGraph 流程完成编辑意图识别、相关设定检索、修改提案生成和提案校验。
+- 将地点、NPC、阵营、传说、任务、时间线、规则及任意自定义内容保存为结构化设定。
+- 所有修改先进入草稿，DM 可以审阅、评论、解决评论、撤销、放弃或发布。
+- 每次发布都会保留可审计版本历史，并检查重复设定和失效关系。
+- 正常 DM 推理会召回相关已发布设定；剧情事件疑似违背既有设定时，系统自动生成待审更新草稿。
+- 支持关系图、时间线、开局模板、NPC 角色转换及战役包导入导出。
+
 ### 自由扮演与回合制模式
 
 - 战役默认处于自由扮演模式，可通过聊天命令切换到回合制模式。
@@ -91,8 +101,17 @@ flowchart TD
     A["玩家消息 / QQ @ / Web 请求"] --> B["统一消息路由"]
     B --> C{"控制命令或直接查询?"}
     C -->|"保存 / 暂停 / 继续"| D["战役控制与检查点"]
+    C -->|"进入战役编辑模式"| Q["战役编辑路由"]
     C -->|"法术 / 记忆 / 剧情线"| E["目录与记忆直接查询"]
     C -->|"剧情行动"| F["构建 DM 上下文"]
+
+    subgraph CE["LangGraph 战役编辑器"]
+        Q --> Q1["classify_editor_intent<br/>识别编辑意图"]
+        Q1 --> Q2["retrieve_related_settings<br/>检索相关设定"]
+        Q2 --> Q3["generate_proposal<br/>生成修改提案"]
+        Q3 --> Q4["validate_proposal<br/>校验提案"]
+        Q4 --> Q5["草稿审阅 / 发布 / 放弃"]
+    end
 
     F --> F1["角色卡与最近事件"]
     F --> F2["战役摘要与开放剧情线"]
@@ -300,6 +319,12 @@ uv run scripts/install_parse_backends.py --backend markitdown
 | 导出人物卡 | `GET /characters/{character_id}/sheet` |
 | 战役事件 | `GET /campaigns/{campaign_id}/events` |
 | 战役记忆 | `GET /campaigns/{campaign_id}/memories` |
+| 已发布设定与搜索 | `GET /campaigns/{campaign_id}/settings` |
+| 设定草稿与发布 | `/campaigns/{campaign_id}/setting-drafts` |
+| 设定历史与评论 | `/campaigns/{campaign_id}/setting-history`、`/setting-comments` |
+| 设定校验与冲突 | `/campaigns/{campaign_id}/settings/validate`、`/settings/conflicts` |
+| 设定关系图与时间线 | `/campaigns/{campaign_id}/setting-graph`、`/timeline` |
+| 战役包导入导出 | `/campaigns/{campaign_id}/package` |
 | 实体状态 | `GET /campaigns/{campaign_id}/entities` |
 | 开放剧情线 | `GET /campaigns/{campaign_id}/threads` |
 | 历史记忆回填 | `POST /campaigns/{campaign_id}/memories/backfill` |
@@ -317,6 +342,12 @@ uv run scripts/install_parse_backends.py --backend markitdown
 /法术 火球术
 /记忆 银钥匙
 /剧情线
+/编辑战役      DM only
+/查看草稿
+/发布设定      DM only
+/撤销修改      DM only
+/放弃编辑      DM only
+/退出编辑      DM only
 ```
 
 ## 测试
@@ -334,6 +365,8 @@ npm run build
 ```text
 backend/app/
   agents/dm_graph.py       LangGraph DM 推理图
+  agents/campaign_editor_graph.py  LangGraph 战役编辑图
+  campaign_editor.py       结构化设定、草稿、历史与战役包
   campaign_memory.py       记忆提取、回填与召回
   campaign_control.py      保存、暂停、继续与检查点
   message_router.py        QQ 与 HTTP 共用的消息路由

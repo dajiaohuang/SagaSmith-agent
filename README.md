@@ -19,6 +19,16 @@ LangGraph orchestrates the DM reasoning phase, DeepSeek generates narrative resp
 - Supports incremental and idempotent backfilling of memory from existing campaign events.
 - Compresses long sessions with summaries and saves campaign plus character state through checkpoints.
 
+### Conversational Campaign Editor
+
+- Provides a DM-only campaign edit mode that is isolated from normal play and does not advance turns or write gameplay events.
+- Uses an independent LangGraph workflow to classify editing intent, retrieve related settings, generate proposals, and validate them.
+- Stores locations, NPCs, factions, lore, quests, timeline entries, rules, and arbitrary homebrew settings as structured records.
+- Keeps proposed changes in drafts until the DM publishes them; drafts can be reviewed, commented on, resolved, undone, or discarded.
+- Preserves an auditable version history for every published change and validates broken relationships or duplicate settings.
+- Retrieves relevant published settings into normal DM reasoning and creates review drafts when new events appear to contradict established canon.
+- Exposes relationship graphs, timelines, starter templates, NPC conversion, and portable campaign package import/export.
+
 ### Free-play and Turn-based Modes
 
 - Campaigns default to free-play mode and may switch to turn-based mode through chat commands.
@@ -91,8 +101,17 @@ flowchart TD
     A["Player message / QQ mention / Web request"] --> B["Unified message router"]
     B --> C{"Control command or direct lookup?"}
     C -->|"Save / Pause / Resume"| D["Campaign control and checkpoint"]
+    C -->|"Enter campaign edit mode"| Q["Campaign editor router"]
     C -->|"Spell / Memory / Story thread"| E["Catalog and memory lookup"]
     C -->|"Narrative action"| F["Build DM context"]
+
+    subgraph CE["LangGraph Campaign Editor"]
+        Q --> Q1["classify_editor_intent"]
+        Q1 --> Q2["retrieve_related_settings"]
+        Q2 --> Q3["generate_proposal"]
+        Q3 --> Q4["validate_proposal"]
+        Q4 --> Q5["Draft review / publish / discard"]
+    end
 
     F --> F1["Character sheet and recent events"]
     F --> F2["Campaign summaries and open threads"]
@@ -300,6 +319,12 @@ uv run scripts/install_parse_backends.py --backend markitdown
 | Export a character sheet | `GET /characters/{character_id}/sheet` |
 | Campaign events | `GET /campaigns/{campaign_id}/events` |
 | Campaign memories | `GET /campaigns/{campaign_id}/memories` |
+| Published campaign settings and search | `GET /campaigns/{campaign_id}/settings` |
+| Setting drafts and publishing | `/campaigns/{campaign_id}/setting-drafts` |
+| Setting history and comments | `/campaigns/{campaign_id}/setting-history`, `/setting-comments` |
+| Setting validation and conflicts | `/campaigns/{campaign_id}/settings/validate`, `/settings/conflicts` |
+| Setting relationship graph and timeline | `/campaigns/{campaign_id}/setting-graph`, `/timeline` |
+| Campaign package import/export | `/campaigns/{campaign_id}/package` |
 | Entity state | `GET /campaigns/{campaign_id}/entities` |
 | Open story threads | `GET /campaigns/{campaign_id}/threads` |
 | Backfill historical memory | `POST /campaigns/{campaign_id}/memories/backfill` |
@@ -317,6 +342,12 @@ uv run scripts/install_parse_backends.py --backend markitdown
 /spell Fireball
 /memory silver key
 /threads
+/editcampaign        DM only
+/drafts
+/publishsettings     DM only
+/undodraft           DM only
+/discardsettings     DM only
+/exitedit            DM only
 ```
 
 Chinese command aliases such as `/帮助`, `/保存`, `/法术`, `/记忆`, and `/剧情线` are also supported.
@@ -336,6 +367,8 @@ npm run build
 ```text
 backend/app/
   agents/dm_graph.py       LangGraph DM reasoning graph
+  agents/campaign_editor_graph.py  LangGraph campaign editor
+  campaign_editor.py       Structured settings, drafts, history, and packages
   campaign_memory.py       Memory extraction, backfill, and retrieval
   campaign_control.py      Save, pause, resume, and checkpoints
   message_router.py        Shared QQ and HTTP message routing

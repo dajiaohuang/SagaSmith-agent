@@ -19,6 +19,7 @@ from app.llm import chat_completion
 from app.tools.dice import roll_dice, roll_with_advantage
 from app.tools.spell_catalog import search_spells
 from app.tools.item_schema import CurrencyWallet, normalize_inventory
+from app.campaign_editor import search_settings, suggest_setting_updates_for_event
 
 
 def uid(prefix: str) -> str:
@@ -72,6 +73,7 @@ def append_event(db: Session, campaign_id: str, session_id: str | None, event_ty
     db.add(event)
     db.commit()
     index_event_memory(db, event, memory_plan)
+    suggest_setting_updates_for_event(db, event)
     return event
 
 
@@ -206,6 +208,7 @@ def build_dm_context(
     rules = search_rules(db, message, 3)
     spells = search_spells(message, settings.data_dir, 3)
     memory_package = build_memory_package(db, campaign_id, message, session_id)
+    campaign_settings = search_settings(db, campaign_id, message, 5)
     context = {
         "campaign": serialize(campaign) if campaign else None,
         "character": serialize(character) if character else None,
@@ -223,6 +226,13 @@ def build_dm_context(
             for item in events
         ],
         "structured_memory": memory_package,
+        "relevant_campaign_settings": [
+            {
+                "id": item.id, "category": item.category, "name": item.name, "summary": item.summary,
+                "content": item.content, "visibility": item.visibility, "relationships": item.relationships,
+            }
+            for item in campaign_settings
+        ],
         "relevant_rules": [
             {
                 "source": item.get("source"),
@@ -263,6 +273,7 @@ def build_dm_context(
         "thread_ids": [item["id"] for item in memory_package["threads"]],
         "rule_chunk_ids": [item.get("id") for item in rules if item.get("id")],
         "spell_ids": [item.get("id") for item in spells if item.get("id")],
+        "campaign_setting_ids": [item.id for item in campaign_settings],
         "character_id": character.id if character else None,
         "character_version": character.version if character else None,
     }

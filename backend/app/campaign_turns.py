@@ -150,7 +150,10 @@ def turn_notification(db: Session, campaign: Campaign) -> dict | None:
 
 
 def format_turn_state(campaign: Campaign) -> str:
-    if runtime_mode(campaign) == "free":
+    mode = runtime_mode(campaign)
+    if mode == "campaign_edit":
+        return "当前模式：战役编辑模式"
+    if mode == "free":
         return "当前模式：自由扮演模式"
     state = turn_state(campaign)
     current = current_turn(campaign)

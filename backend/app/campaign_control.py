@@ -13,9 +13,15 @@ from app.campaign_turns import (
     advance_turn, end_combat, enter_turn_mode, exit_turn_mode, format_turn_state,
     start_combat, turn_notification,
 )
+from app.campaign_editor import discard_drafts, publish_drafts, undo_latest_draft, validate_settings
+from app.db.models import CampaignSettingDraft
 
 
-DM_ONLY_COMMANDS = {"save", "pause", "resume", "start_combat", "end_combat", "next_turn"}
+DM_ONLY_COMMANDS = {
+    "save", "pause", "resume", "start_combat", "end_combat", "next_turn",
+    "enter_campaign_edit", "exit_campaign_edit", "publish_settings", "discard_settings",
+    "undo_setting_draft",
+}
 
 
 def campaign_status(campaign: Campaign) -> str:
@@ -88,6 +94,12 @@ def execute_command(
             "/进入战斗 - 投掷全体先攻并进入战斗（DM）\n"
             "/结束战斗 - 结束战斗并返回自由模式（DM）\n"
             "/下一回合 - 跳过当前行动者（DM）\n"
+            "/编辑战役 - 进入战役设定编辑模式（DM）\n"
+            "/发布设定 - 发布全部待处理设定草稿（DM）\n"
+            "/放弃编辑 - 放弃草稿并退出编辑模式（DM）\n"
+            "/查看草稿 - 查看当前待发布草稿\n"
+            "/撤销修改 - 撤销最近草稿（DM）\n"
+            "/检查设定 - 检查悬空引用与冲突\n"
             "/法术 法术名 - 直接查询合并法术表"
         ))
 
@@ -156,6 +168,54 @@ def execute_command(
             f"已推进回合。\n{format_turn_state(campaign)}",
             data={"turn_notification": notification},
         )
+
+    if command.name == "enter_campaign_edit":
+        config = copy.deepcopy(campaign.config or {})
+        config["runtime_mode"] = "campaign_edit"
+        config["editor_session_id"] = session_id
+        campaign.config = config
+        db.commit()
+        return command_result("enter_campaign_edit", "已进入战役编辑模式。讨论不会推进剧情，修改会先形成草稿。")
+
+    if command.name == "exit_campaign_edit":
+        config = copy.deepcopy(campaign.config or {})
+        config["runtime_mode"] = "free"
+        config.pop("editor_session_id", None)
+        campaign.config = config
+        db.commit()
+        return command_result("exit_campaign_edit", "已退出战役编辑模式，未发布草稿仍会保留。")
+
+    if command.name == "publish_settings":
+        published = publish_drafts(db, campaign.id, actor_id)
+        return command_result("publish_settings", f"已发布 {len(published)} 条战役设定。",
+                              data={"settings": [serialize(item) for item in published]})
+
+    if command.name == "discard_settings":
+        count = discard_drafts(db, campaign.id)
+        config = copy.deepcopy(campaign.config or {})
+        config["runtime_mode"] = "free"
+        config.pop("editor_session_id", None)
+        campaign.config = config
+        db.commit()
+        return command_result("discard_settings", f"已放弃 {count} 条草稿并退出编辑模式。")
+
+    if command.name == "list_setting_drafts":
+        drafts = db.scalars(select(CampaignSettingDraft).where(
+            CampaignSettingDraft.campaign_id == campaign.id,
+            CampaignSettingDraft.status == "pending",
+        ).order_by(CampaignSettingDraft.created_at)).all()
+        lines = [f"- {item.operation}: {item.name or item.target_setting_id}" for item in drafts]
+        return command_result("list_setting_drafts", "\n".join(lines) or "当前没有待发布草稿。",
+                              data={"drafts": [serialize(item) for item in drafts]})
+
+    if command.name == "undo_setting_draft":
+        draft = undo_latest_draft(db, campaign.id)
+        return command_result("undo_setting_draft", "已撤销最近草稿。" if draft else "当前没有可撤销草稿。",
+                              ok=bool(draft), data={"draft": serialize(draft) if draft else None})
+
+    if command.name == "validate_settings":
+        result = validate_settings(db, campaign.id)
+        return command_result("validate_settings", json.dumps(result, ensure_ascii=False, indent=2), data=result)
 
     if command.name == "save":
         checkpoint = create_checkpoint(db, campaign, session_id, actor_id, "manual_save")

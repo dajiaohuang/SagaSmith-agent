@@ -96,3 +96,25 @@ class EventCreate(BaseModel):
     visibility: str = "party"
     importance: int = 3
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class SettingDraftCreate(BaseModel):
+    operation: str = "create"
+    target_setting_id: str | None = None
+    category: str = "custom"
+    name: str = ""
+    proposal: dict[str, Any] = Field(default_factory=dict)
+    reason: str = ""
+    session_id: str | None = None
+    actor_id: str | None = None
+
+
+class CampaignPackageImport(BaseModel):
+    package: dict[str, Any]
+
+
+class SettingCommentCreate(BaseModel):
+    setting_id: str | None = None
+    draft_id: str | None = None
+    author_id: str | None = None
+    content: str

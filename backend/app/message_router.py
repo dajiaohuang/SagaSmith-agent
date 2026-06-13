@@ -12,6 +12,7 @@ from app.campaign_memory import build_memory_package
 from app.campaign_turns import (
     advance_turn, current_turn, format_turn_state, runtime_mode, turn_access, turn_notification,
 )
+from app.campaign_editor import editor_chat
 
 
 def process_message(
@@ -37,6 +38,14 @@ def process_message(
     command = route_command(message)
     if command:
         return execute_command(db, command, campaign, session_id, actor_id, is_dm)
+    if runtime_mode(campaign) == "campaign_edit":
+        if not is_dm:
+            return command_result("campaign_edit", "战役编辑模式仅允许 DM 操作。", ok=False)
+        result = editor_chat(db, campaign, session_id, message, actor_id)
+        return {
+            "ok": True, "kind": "campaign_editor", "command": "campaign_editor",
+            "narration": result.pop("narration"), "data": result, "rolls": [], "state_changes": [], "events": [],
+        }
     spell_lookup = direct_spell_lookup(message, settings.data_dir, 5)
     if spell_lookup:
         spell_query, spells = spell_lookup

@@ -29,6 +29,19 @@ EXPLICIT_COMMANDS = {
     "/endcombat": "end_combat",
     "/下一回合": "next_turn",
     "/next": "next_turn",
+    "/编辑战役": "enter_campaign_edit",
+    "/editcampaign": "enter_campaign_edit",
+    "/退出编辑": "exit_campaign_edit",
+    "/exitedit": "exit_campaign_edit",
+    "/发布设定": "publish_settings",
+    "/publishsettings": "publish_settings",
+    "/放弃编辑": "discard_settings",
+    "/discardsettings": "discard_settings",
+    "/查看草稿": "list_setting_drafts",
+    "/drafts": "list_setting_drafts",
+    "/撤销修改": "undo_setting_draft",
+    "/undodraft": "undo_setting_draft",
+    "/检查设定": "validate_settings",
 }
 
 NATURAL_COMMANDS = {
@@ -52,6 +65,16 @@ NATURAL_COMMANDS = {
     "开始战斗": "start_combat",
     "结束战斗": "end_combat",
     "下一回合": "next_turn",
+    "进入战役编辑模式": "enter_campaign_edit",
+    "编辑战役": "enter_campaign_edit",
+    "退出战役编辑模式": "exit_campaign_edit",
+    "退出编辑": "exit_campaign_edit",
+    "发布设定": "publish_settings",
+    "确认修改": "publish_settings",
+    "放弃编辑": "discard_settings",
+    "查看草稿": "list_setting_drafts",
+    "撤销修改": "undo_setting_draft",
+    "检查设定": "validate_settings",
 }
 
 

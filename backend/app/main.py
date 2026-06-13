@@ -10,11 +10,11 @@ from sqlalchemy.orm import Session
 
 from app.db.database import Base, engine, get_db
 from app.db.models import (Campaign, CampaignCheckpoint, CampaignEntity, CampaignEvent, CampaignMemory,
-                           CampaignSummary, CampaignThread, Character, CharacterChange, CompendiumEntry,
-                           NapCatCharacterBinding)
+                           CampaignSetting, CampaignSettingComment, CampaignSettingDraft, CampaignSettingHistory, CampaignSummary,
+                           CampaignThread, Character, CharacterChange, CompendiumEntry, NapCatCharacterBinding)
 from app.schemas import (CampaignCreate, CampaignPatch, CharacterCreate, CharacterPatch,
                          CharacterBuildRequest, ChatRequest, DiceRequest, EventCreate,
-                         NapCatBindingUpsert)
+                         NapCatBindingUpsert, SettingDraftCreate, CampaignPackageImport, SettingCommentCreate)
 from app.services import (append_event, create_summary, ingest_compendium, ingest_rules,
                           search_rules, serialize, uid)
 from app.tools.dice import roll_dice
@@ -32,6 +32,11 @@ from app.tools.character_rules import (
 from app.tools.spell_catalog import load_spell_catalog, search_spells
 from app.tools.item_schema import item_schema_catalog, normalize_character_inventory
 from app.campaign_memory import backfill_campaign_memory, search_campaign_memory
+from app.campaign_editor import (
+    TEMPLATES, apply_template, conflict_suggestions, create_draft, export_campaign_package,
+    discard_drafts, import_campaign_package, list_settings, publish_drafts, search_settings, setting_graph,
+    setting_timeline, setting_to_npc_character, undo_latest_draft, validate_settings,
+)
 
 
 @asynccontextmanager
@@ -298,6 +303,137 @@ def patch_campaign(campaign_id: str, req: CampaignPatch, db: Session = Depends(g
         setattr(campaign, key, value)
     db.commit()
     return serialize(campaign)
+
+
+@app.get("/campaigns/{campaign_id}/settings")
+def get_campaign_settings(campaign_id: str, query: str | None = None, db: Session = Depends(get_db)):
+    items = search_settings(db, campaign_id, query, 30) if query else list_settings(db, campaign_id)
+    return [serialize(item) for item in items]
+
+
+@app.get("/campaigns/{campaign_id}/setting/{setting_id}")
+def get_campaign_setting(campaign_id: str, setting_id: str, db: Session = Depends(get_db)):
+    item = db.get(CampaignSetting, setting_id)
+    if not item or item.campaign_id != campaign_id:
+        raise HTTPException(404, "Campaign setting not found")
+    return serialize(item)
+
+
+@app.post("/campaigns/{campaign_id}/setting/{setting_id}/npc-character", status_code=201)
+def create_npc_from_setting(campaign_id: str, setting_id: str, db: Session = Depends(get_db)):
+    item = db.get(CampaignSetting, setting_id)
+    if not item or item.campaign_id != campaign_id or item.category != "npc":
+        raise HTTPException(404, "Published NPC setting not found")
+    return serialize(setting_to_npc_character(db, item))
+
+
+@app.get("/campaigns/{campaign_id}/setting-drafts")
+def get_setting_drafts(campaign_id: str, db: Session = Depends(get_db)):
+    query = select(CampaignSettingDraft).where(CampaignSettingDraft.campaign_id == campaign_id)
+    return [serialize(item) for item in db.scalars(query.order_by(CampaignSettingDraft.created_at.desc())).all()]
+
+
+@app.post("/campaigns/{campaign_id}/setting-drafts", status_code=201)
+def add_setting_draft(campaign_id: str, req: SettingDraftCreate, db: Session = Depends(get_db)):
+    proposal = {"category": req.category, "name": req.name, **req.proposal}
+    return serialize(create_draft(
+        db, campaign_id, req.operation, proposal, req.session_id, req.actor_id,
+        req.target_setting_id, req.reason,
+    ))
+
+
+@app.post("/campaigns/{campaign_id}/setting-drafts/publish")
+def publish_setting_drafts(campaign_id: str, actor_id: str | None = None, db: Session = Depends(get_db)):
+    return [serialize(item) for item in publish_drafts(db, campaign_id, actor_id)]
+
+
+@app.delete("/campaigns/{campaign_id}/setting-drafts")
+def discard_setting_drafts(campaign_id: str, db: Session = Depends(get_db)):
+    return {"discarded": discard_drafts(db, campaign_id)}
+
+
+@app.post("/campaigns/{campaign_id}/setting-drafts/undo")
+def undo_setting_draft(campaign_id: str, db: Session = Depends(get_db)):
+    item = undo_latest_draft(db, campaign_id)
+    return {"draft": serialize(item) if item else None}
+
+
+@app.get("/campaigns/{campaign_id}/setting-history")
+def get_setting_history(campaign_id: str, db: Session = Depends(get_db)):
+    query = select(CampaignSettingHistory).where(CampaignSettingHistory.campaign_id == campaign_id)
+    return [serialize(item) for item in db.scalars(query.order_by(CampaignSettingHistory.created_at.desc())).all()]
+
+
+@app.get("/campaigns/{campaign_id}/setting-comments")
+def get_setting_comments(campaign_id: str, db: Session = Depends(get_db)):
+    query = select(CampaignSettingComment).where(CampaignSettingComment.campaign_id == campaign_id)
+    return [serialize(item) for item in db.scalars(query.order_by(CampaignSettingComment.created_at.desc())).all()]
+
+
+@app.post("/campaigns/{campaign_id}/setting-comments", status_code=201)
+def add_setting_comment(campaign_id: str, req: SettingCommentCreate, db: Session = Depends(get_db)):
+    comment = CampaignSettingComment(id=uid("comment"), campaign_id=campaign_id, **req.model_dump())
+    db.add(comment)
+    db.commit()
+    return serialize(comment)
+
+
+@app.post("/campaigns/{campaign_id}/setting-comments/{comment_id}/resolve")
+def resolve_setting_comment(campaign_id: str, comment_id: str, db: Session = Depends(get_db)):
+    comment = db.get(CampaignSettingComment, comment_id)
+    if not comment or comment.campaign_id != campaign_id:
+        raise HTTPException(404, "Campaign setting comment not found")
+    comment.resolved = True
+    db.commit()
+    return serialize(comment)
+
+
+@app.get("/campaigns/{campaign_id}/settings/validate")
+def validate_campaign_settings(campaign_id: str, db: Session = Depends(get_db)):
+    return validate_settings(db, campaign_id)
+
+
+@app.get("/campaigns/{campaign_id}/settings/conflicts")
+def campaign_setting_conflicts(campaign_id: str, db: Session = Depends(get_db)):
+    return conflict_suggestions(db, campaign_id)
+
+
+@app.get("/campaigns/{campaign_id}/setting-graph")
+def campaign_setting_graph(campaign_id: str, db: Session = Depends(get_db)):
+    return setting_graph(db, campaign_id)
+
+
+@app.get("/campaigns/{campaign_id}/timeline")
+def campaign_timeline(campaign_id: str, db: Session = Depends(get_db)):
+    return setting_timeline(db, campaign_id)
+
+
+@app.get("/campaign-setting-templates")
+def campaign_setting_templates():
+    return TEMPLATES
+
+
+@app.post("/campaigns/{campaign_id}/templates/{template}")
+def apply_campaign_template(campaign_id: str, template: str, actor_id: str | None = None, db: Session = Depends(get_db)):
+    try:
+        return {"drafts_created": apply_template(db, campaign_id, template, actor_id)}
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@app.get("/campaigns/{campaign_id}/package")
+def export_campaign(campaign_id: str, db: Session = Depends(get_db)):
+    if not db.get(Campaign, campaign_id):
+        raise HTTPException(404, "Campaign not found")
+    return export_campaign_package(db, campaign_id)
+
+
+@app.post("/campaigns/{campaign_id}/package")
+def import_campaign(campaign_id: str, req: CampaignPackageImport, db: Session = Depends(get_db)):
+    try:
+        return import_campaign_package(db, campaign_id, req.package)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
 
 
 @app.post("/characters", status_code=201)
