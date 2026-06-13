@@ -89,8 +89,8 @@ def execute_command(
     if command.name in DM_ONLY_COMMANDS and not is_dm:
         return command_result(command.name, "该命令仅限 DM 使用。", ok=False)
     campaign_only = {
-        "save", "pause", "resume", "enter_campaign_edit", "exit_campaign_edit", "publish_settings",
-        "discard_settings", "list_setting_drafts", "undo_setting_draft", "validate_settings",
+        "enter_campaign_edit", "exit_campaign_edit", "publish_settings", "discard_settings",
+        "list_setting_drafts", "undo_setting_draft", "validate_settings",
     }
     if play_style(campaign) == "dice_assistant" and command.name in campaign_only:
         return command_result(
@@ -146,7 +146,8 @@ def execute_command(
         db.commit()
         return command_result("enter_dice_assistant", (
             "已进入骰娘模式。不会代替真实 DM 推进预设剧情；会审计被 @ 的操作、在场角色、"
-            "检定和战斗，并维护可检索记忆。仍可管理角色卡、物品、先攻、伤害、治疗和战斗回合。"
+            "检定和战斗，并维护可检索记忆。保留角色卡、规则、技能、法术、物品、先攻、"
+            "伤害、治疗和战斗回合等全部工具能力，也可以自然提问。"
         ))
 
     if command.name == "exit_dice_assistant":

@@ -66,7 +66,8 @@ LangGraph orchestrates the DM reasoning phase, DeepSeek generates narrative resp
 - Dice assistant mode does not replace the real DM or advance a preset plot, but it continuously audits mentioned operations and present actors while maintaining searchable memory.
 - When mentioned to update memory, it reads the current or replied-to message by default and asks whether it should also ingest earlier group-chat history.
 - When mentioned to start combat, it asks for participants and initiative advantage/disadvantage, rolls initiative, and hosts turns using the DM-mode combat flow.
-- Character sheets, items, spells, checks, damage, healing, and combat assistance remain available; campaign-setting edits still require campaign narration mode.
+- Dice assistant mode only disables proactive plot advancement, environment narration, and NPC roleplay. All tool capabilities remain available through natural-language questions, including character sheets, rules, skills, spells, items, memory, checks, damage, healing, and combat.
+- Example questions include “What abilities can I use?”, “What does Fireball do?”, and “What is my Athletics bonus?” Campaign-setting edits still require campaign narration mode.
 
 Every object is stored once in `character.data.inventory`. Equipped objects use `equipped` and
 `equipped_slot`; homebrew properties remain queryable through `custom_data` or additional fields.

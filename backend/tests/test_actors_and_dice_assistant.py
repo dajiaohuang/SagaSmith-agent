@@ -10,12 +10,19 @@ def test_dice_assistant_natural_command_alias():
 
 def test_dm_actors_roleplay_presence_and_dice_assistant(monkeypatch):
     captured = {}
+    dice_captured = {}
 
     def fake_chat(messages):
         captured["context"] = messages[1]["content"]
         return "The innkeeper answers in a careful whisper."
 
+    def fake_dice_chat(messages, temperature=0.2):
+        dice_captured["system"] = messages[0]["content"]
+        dice_captured["context"] = messages[1]["content"]
+        return "工具回答：Athletics 检定使用力量调整值。"
+
     monkeypatch.setattr("app.services.chat_completion", fake_chat)
+    monkeypatch.setattr("app.dice_assistant.chat_completion", fake_dice_chat)
     with TestClient(app) as client:
         campaign = client.post("/campaigns", json={"name": "Actors and Dice"}).json()
         campaign_id = campaign["id"]
@@ -25,6 +32,8 @@ def test_dm_actors_roleplay_presence_and_dice_assistant(monkeypatch):
             "abilities": {"str": 16, "dex": 12, "con": 14, "int": 10, "wis": 10, "cha": 10},
             "skill_proficiencies": ["athletics"],
             "inventory": [{"item_id": "potion_healing", "name": "Potion of Healing", "quantity": 1}],
+            "features": [{"name": "Second Wind"}],
+            "spells": ["Fireball"],
         }).json()
         npc = client.post("/characters/build", json={
             "campaign_id": campaign_id, "player_name": "DM", "character_name": "Mira",
@@ -77,7 +86,7 @@ def test_dm_actors_roleplay_presence_and_dice_assistant(monkeypatch):
         assert entered["ok"]
         assert client.get(f"/campaigns/{campaign_id}/status").json()["play_style"] == "dice_assistant"
         assert client.post(f"/chat/{campaign_id}", json={"session_id": "dice", "message": "/memory anything"}).json()["ok"]
-        assert not client.post(f"/chat/{campaign_id}", json={"session_id": "dice", "message": "/save"}).json()["ok"]
+        assert client.post(f"/chat/{campaign_id}", json={"session_id": "dice", "message": "/save"}).json()["ok"]
 
         check = client.post(f"/chat/{campaign_id}", json={
             "session_id": "dice", "player_id": "player", "character_id": player["id"], "message": "力量检定 优势",
@@ -88,6 +97,28 @@ def test_dm_actors_roleplay_presence_and_dice_assistant(monkeypatch):
             "session_id": "dice", "player_id": "player", "character_id": player["id"], "message": "查看背包",
         }).json()
         assert "Potion of Healing" in inventory["narration"]
+        capabilities = client.post(f"/chat/{campaign_id}", json={
+            "session_id": "dice", "player_id": "player", "character_id": player["id"], "message": "我有什么技能能放？",
+        }).json()
+        assert "athletics +5" in capabilities["narration"]
+        assert "Second Wind" in capabilities["narration"]
+        assert "火球术" in capabilities["narration"]
+        tool_answer = client.post(f"/chat/{campaign_id}", json={
+            "session_id": "dice", "player_id": "player", "character_id": player["id"],
+            "message": "运动检定应该加什么？",
+        }).json()
+        assert "工具回答" in tool_answer["narration"]
+        assert not tool_answer["rolls"]
+        assert not tool_answer["state_changes"]
+        assert "禁止推进或编造剧情" in dice_captured["system"]
+        assert "roleplay_instructions" not in dice_captured["context"]
+        assert "planned_actions" not in dice_captured["context"]
+        potion_question = client.post(f"/chat/{campaign_id}", json={
+            "session_id": "dice", "player_id": "player", "character_id": player["id"],
+            "message": "治疗药水能恢复多少？",
+        }).json()
+        assert not potion_question["state_changes"]
+        assert client.get(f"/characters/{player['id']}").json()["data"]["inventory"][0]["quantity"] == 1
         hp = client.post(f"/chat/{campaign_id}", json={
             "session_id": "dice", "player_id": "player", "character_id": player["id"], "message": "伤害 4",
         }).json()
