@@ -144,3 +144,40 @@ def test_napcat_callback_to_dm(monkeypatch):
         assert used["character_id"] == character["id"]
         assert used["actor_id"] == "456"
         assert not used["is_dm"]
+
+
+def test_napcat_group_turn_notification_ats_bound_player(monkeypatch):
+    sent = []
+
+    class FakeClient:
+        self_id = "123"
+
+        def send_group_msg(self, group_id, message):
+            sent.append(("message", str(group_id), message))
+
+        def send_group_at(self, group_id, user_id, message):
+            sent.append(("at", str(user_id), message))
+
+    monkeypatch.setattr("app.main.NapCatClient.from_settings", lambda: FakeClient())
+    monkeypatch.setattr("app.main.download_attachments", lambda client, payload: (Path(tempfile.mkdtemp()), [], []))
+    monkeypatch.setattr(
+        "app.main.process_message",
+        lambda *args, **kwargs: {
+            "narration": "Next turn.",
+            "turn_notification": {"qq_user_id": "456", "name": "Bound Hero"},
+        },
+    )
+    monkeypatch.setattr(settings, "napcat_campaign_id", "campaign_001")
+    monkeypatch.setattr(settings, "napcat_token", "")
+
+    with TestClient(app) as client:
+        client.post("/demo/bootstrap")
+        response = client.post("/napcat/callback", json={
+            "post_type": "message",
+            "message_type": "group",
+            "group_id": 88,
+            "user_id": 999,
+            "message": [{"type": "at", "data": {"qq": "123"}}, {"type": "text", "data": {"text": "next"}}],
+        })
+        assert response.status_code == 200
+        assert any(item[0] == "at" and item[1] == "456" for item in sent)

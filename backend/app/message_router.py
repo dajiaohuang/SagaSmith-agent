@@ -9,6 +9,9 @@ from app.db.models import Campaign
 from app.services import resolve_chat
 from app.tools.spell_catalog import direct_spell_lookup, format_spell
 from app.campaign_memory import build_memory_package
+from app.campaign_turns import (
+    advance_turn, current_turn, format_turn_state, runtime_mode, turn_access, turn_notification,
+)
 
 
 def process_message(
@@ -49,4 +52,17 @@ def process_message(
             "战役当前处于暂停状态。DM 可发送 /继续 恢复战役；其他命令可发送 /帮助 查看。",
             ok=False,
         )
-    return resolve_chat(db, campaign.id, session_id, character_id, message)
+    allowed, reason = turn_access(campaign, character_id, is_dm)
+    if not allowed:
+        return command_result("not_your_turn", reason, ok=False, data={"turn_state": format_turn_state(campaign)})
+    action_character_id = character_id
+    active_actor = current_turn(campaign)
+    if active_actor and active_actor["actor_type"] == "npc" and is_dm:
+        action_character_id = active_actor["character_id"]
+    result = resolve_chat(db, campaign.id, session_id, action_character_id, message)
+    if runtime_mode(campaign) == "turn_based":
+        advance_turn(db, campaign)
+        notification = turn_notification(db, campaign)
+        result["turn_notification"] = notification
+        result["narration"] += f"\n\n{format_turn_state(campaign)}"
+    return result

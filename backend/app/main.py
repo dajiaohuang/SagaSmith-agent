@@ -145,6 +145,13 @@ async def napcat_callback(
     answer = result["narration"]
     if payload.get("message_type") == "group":
         client.send_group_msg(payload["group_id"], answer)
+        notification = result.get("turn_notification") or result.get("data", {}).get("turn_notification")
+        if notification and notification.get("qq_user_id"):
+            client.send_group_at(
+                payload["group_id"],
+                notification["qq_user_id"],
+                f"轮到你的角色“{notification['name']}”行动了。",
+            )
     else:
         client.send_private_msg(payload["user_id"], answer)
     return {"ok": True, "result": result, "parsed_attachments": parsed, "attachment_errors": attachment_errors}
@@ -255,6 +262,7 @@ def get_campaign(campaign_id: str, db: Session = Depends(get_db)):
 @app.get("/campaigns/{campaign_id}/status")
 def get_campaign_status(campaign_id: str, db: Session = Depends(get_db)):
     from app.campaign_control import campaign_status
+    from app.campaign_turns import current_turn, runtime_mode, turn_state
     campaign = db.get(Campaign, campaign_id)
     if not campaign:
         raise HTTPException(404, "Campaign not found")
@@ -263,6 +271,9 @@ def get_campaign_status(campaign_id: str, db: Session = Depends(get_db)):
         "status": campaign_status(campaign),
         "active_session_id": (campaign.config or {}).get("active_session_id"),
         "last_checkpoint_id": (campaign.config or {}).get("last_checkpoint_id"),
+        "runtime_mode": runtime_mode(campaign),
+        "turn_state": turn_state(campaign),
+        "current_turn": current_turn(campaign),
     }
 
 

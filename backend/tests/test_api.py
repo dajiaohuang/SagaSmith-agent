@@ -260,3 +260,78 @@ def test_campaign_memory_three_stage_pipeline(monkeypatch):
             "session_id": "memory_pipeline", "player_id": "player", "message": "/memory silver key",
         }).json()
         assert command["command"] == "memory"
+
+
+def test_free_turn_based_and_combat_mode_transitions(monkeypatch):
+    def fixed_roll(formula):
+        modifier = int(formula.replace("1d20", "") or 0)
+        return {"formula": formula, "rolls": [10], "modifier": modifier, "total": 10 + modifier}
+
+    monkeypatch.setattr("app.campaign_turns.roll_dice", fixed_roll)
+    monkeypatch.setattr("app.services.chat_completion", lambda messages: "Action resolved.")
+    with TestClient(app) as client:
+        campaign = client.post("/campaigns", json={"name": "Turn Test"}).json()
+        campaign_id = campaign["id"]
+        player = client.post("/characters", json={
+            "campaign_id": campaign_id,
+            "character_name": "Hero",
+            "data": {
+                "basic": {"actor_type": "player"},
+                "abilities": {"dex": 12},
+                "combat": {"initiative": 1},
+            },
+        }).json()
+        npc = client.post("/characters", json={
+            "campaign_id": campaign_id,
+            "character_name": "Goblin",
+            "data": {
+                "basic": {"actor_type": "npc"},
+                "abilities": {"dex": 18},
+                "combat": {"initiative": 4},
+            },
+        }).json()
+
+        entered = client.post(f"/chat/{campaign_id}", json={
+            "session_id": "turns", "player_id": "player", "message": "/turns",
+        }).json()
+        assert entered["ok"]
+        assert client.get(f"/campaigns/{campaign_id}/status").json()["runtime_mode"] == "turn_based"
+        exited = client.post(f"/chat/{campaign_id}", json={
+            "session_id": "turns", "player_id": "player", "message": "/free",
+        }).json()
+        assert exited["ok"]
+
+        combat = client.post(f"/chat/{campaign_id}", json={
+            "session_id": "turns", "message": "/combat",
+        }).json()
+        assert combat["ok"]
+        assert combat["data"]["turn_state"]["participants"][0]["character_id"] == npc["id"]
+
+        denied_exit = client.post(f"/chat/{campaign_id}", json={
+            "session_id": "turns", "player_id": "player", "message": "/free",
+        }).json()
+        assert not denied_exit["ok"]
+        assert "不能退出回合模式" in denied_exit["narration"]
+
+        player_on_npc_turn = client.post(f"/chat/{campaign_id}", json={
+            "session_id": "turns", "player_id": "player", "character_id": player["id"], "message": "I attack.",
+        }).json()
+        assert not player_on_npc_turn["ok"]
+        assert player_on_npc_turn["command"] == "not_your_turn"
+
+        npc_action = client.post(f"/chat/{campaign_id}", json={
+            "session_id": "turns", "character_id": player["id"], "message": "The goblin attacks.",
+        }).json()
+        assert npc_action["events"][0]["actors"] == [npc["id"]]
+        assert npc_action["turn_notification"]["character_id"] == player["id"]
+
+        player_action = client.post(f"/chat/{campaign_id}", json={
+            "session_id": "turns", "player_id": "player", "character_id": player["id"], "message": "I defend.",
+        }).json()
+        assert player_action["turn_notification"]["character_id"] == npc["id"]
+
+        ended = client.post(f"/chat/{campaign_id}", json={
+            "session_id": "turns", "message": "/endcombat",
+        }).json()
+        assert ended["ok"]
+        assert client.get(f"/campaigns/{campaign_id}/status").json()["runtime_mode"] == "free"

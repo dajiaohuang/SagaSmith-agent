@@ -19,6 +19,15 @@ LangGraph orchestrates the DM reasoning phase, DeepSeek generates narrative resp
 - Supports incremental and idempotent backfilling of memory from existing campaign events.
 - Compresses long sessions with summaries and saves campaign plus character state through checkpoints.
 
+### Free-play and Turn-based Modes
+
+- Campaigns default to free-play mode and may switch to turn-based mode through chat commands.
+- Starting combat rolls initiative for every player character and NPC, then forces turn-based mode.
+- NPC turns are controlled by the DM; player turns only accept actions from the bound character.
+- After each valid action, the system advances the turn and mentions the next player through NapCat.
+- Non-combat turn-based mode may be exited manually. Combat cannot exit turn-based mode until combat ends.
+- Ending combat automatically returns the campaign to free-play mode.
+
 ### Auditable DM Reasoning
 
 - LangGraph runs memory retrieval, intent parsing, rules arbitration, and action planning.
@@ -129,6 +138,11 @@ Memory commands:
 ```text
 /memory silver key
 /threads
+/turns
+/free
+/combat      DM only
+/endcombat   DM only
+/next        DM only
 ```
 
 ## Technology Stack

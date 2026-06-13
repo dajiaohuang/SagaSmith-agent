@@ -57,6 +57,15 @@ class NapCatClient:
     def send_group_msg(self, group_id: str | int, message: str) -> dict[str, Any]:
         return self.post_action("send_group_msg", {"group_id": int(group_id), "message": message})
 
+    def send_group_at(self, group_id: str | int, user_id: str | int, message: str) -> dict[str, Any]:
+        return self.post_action("send_group_msg", {
+            "group_id": int(group_id),
+            "message": [
+                {"type": "at", "data": {"qq": str(user_id)}},
+                {"type": "text", "data": {"text": f" {message}"}},
+            ],
+        })
+
     def resolve_file_url(self, file_id: str) -> str:
         result = self.post_action("get_file", {"file_id": file_id})
         data = result.get("data") or {}

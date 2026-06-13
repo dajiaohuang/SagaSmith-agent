@@ -19,6 +19,16 @@ EXPLICIT_COMMANDS = {
     "/pause": "pause",
     "/继续": "resume",
     "/resume": "resume",
+    "/回合模式": "enter_turn_mode",
+    "/turns": "enter_turn_mode",
+    "/退出回合模式": "exit_turn_mode",
+    "/free": "exit_turn_mode",
+    "/进入战斗": "start_combat",
+    "/combat": "start_combat",
+    "/结束战斗": "end_combat",
+    "/endcombat": "end_combat",
+    "/下一回合": "next_turn",
+    "/next": "next_turn",
 }
 
 NATURAL_COMMANDS = {
@@ -33,6 +43,15 @@ NATURAL_COMMANDS = {
     "先暂停一下": "pause",
     "继续战役": "resume",
     "恢复战役": "resume",
+    "切换回合模式": "enter_turn_mode",
+    "进入回合模式": "enter_turn_mode",
+    "切换为回合制模式": "enter_turn_mode",
+    "退出回合模式": "exit_turn_mode",
+    "退出回合制模式": "exit_turn_mode",
+    "进入战斗": "start_combat",
+    "开始战斗": "start_combat",
+    "结束战斗": "end_combat",
+    "下一回合": "next_turn",
 }
 
 

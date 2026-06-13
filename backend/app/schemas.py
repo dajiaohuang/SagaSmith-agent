@@ -34,6 +34,7 @@ class CharacterBuildRequest(BaseModel):
     campaign_id: str
     player_name: str = ""
     character_name: str
+    actor_type: str = "player"
     ancestry: str = ""
     subrace: str = ""
     background: str = ""

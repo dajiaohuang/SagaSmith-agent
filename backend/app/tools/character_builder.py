@@ -28,6 +28,7 @@ def build_character_data(raw: dict) -> dict:
     return {
         "basic": {
             "name": raw["character_name"],
+            "actor_type": "npc" if raw.get("actor_type") == "npc" else "player",
             "ancestry": raw.get("ancestry", ""),
             "subrace": raw.get("subrace", ""),
             "background": raw.get("background", ""),
