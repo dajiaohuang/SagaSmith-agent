@@ -17,6 +17,7 @@ from app.tools.dice import roll_dice, roll_with_advantage
 from app.tools.spell_catalog import search_spells
 from app.actor_manager import is_present
 from app.campaign_turns import format_turn_state, start_combat, turn_notification
+from app.qq_bindings import set_dice_dm_actor_bindings
 
 ABILITY_ALIASES = {
     "力量": "str", "strength": "str", "str": "str",
@@ -38,6 +39,11 @@ SKILL_ALIASES = {
     "威吓": "intimidation", "威嚇": "intimidation", "intimidation": "intimidation",
     "奥秘": "arcana", "奧秘": "arcana", "arcana": "arcana",
 }
+FORBIDDEN_DICE_OUTPUT_TERMS = (
+    "建议", "推荐", "不妨", "可以尝试", "你可以选择", "下一步可以", "最好",
+    "你看到", "你听到", "周围", "映入眼帘", "空气中", "说道", "低语", "笑着",
+    "扮演", "剧情继续", "故事继续",
+)
 
 
 def _result(narration: str, rolls: list[dict] | None = None, changes: list[dict] | None = None) -> dict:
@@ -45,6 +51,12 @@ def _result(narration: str, rolls: list[dict] | None = None, changes: list[dict]
         "ok": True, "kind": "dice_assistant", "command": "dice_assistant", "narration": narration,
         "data": {}, "rolls": rolls or [], "state_changes": changes or [], "events": [],
     }
+
+
+def strict_tool_output(text: str | None) -> str | None:
+    if not text:
+        return None
+    return None if any(term in text for term in FORBIDDEN_DICE_OUTPUT_TERMS) else text.strip()
 
 
 def _state(campaign: Campaign) -> dict:
@@ -85,6 +97,27 @@ def dice_context_action(
     context = message_context or {}
     state = _state(campaign)
 
+    if (campaign.config or {}).get("dice_dm_confirmation_pending"):
+        mentioned = [str(item).strip() for item in context.get("mentioned_user_ids") or [] if str(item).strip()]
+        match = re.search(r"(?:dm\s*(?:是|为|=)?\s*)?(\d{5,})", lowered)
+        dm_qq_user_id = mentioned[0] if len(mentioned) == 1 else match.group(1) if match else ""
+        if not dm_qq_user_id:
+            return None
+        config = copy.deepcopy(campaign.config or {})
+        config["dice_dm_qq_user_id"] = dm_qq_user_id
+        config.pop("dice_dm_confirmation_pending", None)
+        campaign.config = config
+        db.commit()
+        bound = set_dice_dm_actor_bindings(db, campaign, dm_qq_user_id)
+        result = _result(f"DM QQ：{dm_qq_user_id}；已关联 NPC/怪物：{len(bound)}。")
+        result["data"] = {
+            "audit_type": "dice_dm_confirmed",
+            "audit_content": dm_qq_user_id,
+            "dm_qq_user_id": dm_qq_user_id,
+            "dm_actor_ids": [item.id for item in bound],
+        }
+        return result
+
     if state.get("pending_memory_history"):
         if _yes(text):
             history = context.get("group_history") or []
@@ -98,7 +131,7 @@ def dice_context_action(
         if _no(text):
             state.pop("pending_memory_history", None)
             _save_state(db, campaign, state)
-            return _result("骰娘：好的，仅保留刚才被 @ / 引用的内容，不读取前文。")
+            return _result("仅保留当前被 @ / 引用的内容；未读取前文。")
         return None
 
     if any(term in lowered for term in ("更新记忆", "更新記憶", "记住", "記住", "记录一下", "記錄一下")):
@@ -114,7 +147,7 @@ def dice_context_action(
         if any(term in lowered for term in ("取消", "算了", "不打了", "退出战斗", "取消战斗", "cancel")):
             state.pop("pending_combat_setup", None)
             _save_state(db, campaign, state)
-            return _result("骰娘：已取消本次战斗准备，仍留在当前战役与骰娘模式中。")
+            return _result("已取消本次战斗准备。")
         characters = [
             item for item in db.scalars(select(Character).where(Character.campaign_id == campaign.id)).all()
             if is_present(item)
@@ -289,7 +322,7 @@ def resolve_dice_tool_question(
             item for item in memory_package["memories"] if item.get("visibility") != "dm_only"
         ],
     }
-    answer = chat_completion([
+    answer = strict_tool_output(chat_completion([
         {
             "role": "system",
             "content": (
@@ -297,13 +330,15 @@ def resolve_dice_tool_question(
                 "检定、战斗计算，以及当前战役的进度、场景、背景、角色和已记录事实问题。"
                 "骰娘始终运行在 current_campaign 所指向的当前战役内，切换模式不会切换或清空战役。"
                 "只能依据提供的战役上下文、机械数据和记忆回答。"
-                "禁止推进或编造剧情，禁止描写周围环境，禁止扮演 NPC，禁止替真实 DM 决定结果。"
-                "信息不足时明确指出缺少什么。"
+                "只输出事实、数据、规则引用、计算结果、状态变更或必要的澄清问题。"
+                "禁止给出行动建议、策略建议或下一步建议。禁止任何扮演文字、气氛文字、环境描写、"
+                "NPC 台词和剧情续写。禁止推进或编造剧情，禁止替真实 DM 决定结果。"
+                "信息不足时只列出缺少的字段。"
             ),
         },
         {"role": "system", "content": json.dumps(context, ensure_ascii=False, default=str)},
         {"role": "user", "content": message},
-    ], temperature=0.2)
+    ], temperature=0.2))
     if answer:
         return _result(answer)
     if rules:

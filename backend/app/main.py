@@ -185,8 +185,10 @@ async def napcat_callback(
             ]
         except Exception as exc:
             message_context["group_history_error"] = str(exc)
+    campaign_dm_user_id = str((campaign.config or {}).get("dice_dm_qq_user_id") or "").strip()
     result = process_message(
-        db, campaign, session_id, character_id, text, actor_id=user_id, is_dm=is_dm_user(user_id),
+        db, campaign, session_id, character_id, text, actor_id=user_id,
+        is_dm=is_dm_user(user_id) or user_id == campaign_dm_user_id,
         message_context=message_context,
     )
     answer = result["narration"]

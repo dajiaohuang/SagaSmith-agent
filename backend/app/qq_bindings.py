@@ -24,6 +24,28 @@ def _write_character_qq_user_ids(character: Character, qq_user_ids: list[str]) -
         character.version += 1
 
 
+def set_dice_dm_actor_bindings(db: Session, campaign: Campaign, dm_qq_user_id: str | None) -> list[Character]:
+    updated = []
+    characters = db.scalars(select(Character).where(Character.campaign_id == campaign.id)).all()
+    for character in characters:
+        actor_type = ((character.data or {}).get("basic") or {}).get("actor_type", "player")
+        if actor_type not in {"npc", "monster"}:
+            continue
+        data = copy.deepcopy(character.data or {})
+        integrations = copy.deepcopy(data.get("integrations") or {})
+        if dm_qq_user_id:
+            integrations["dice_dm_qq_user_id"] = dm_qq_user_id
+        else:
+            integrations.pop("dice_dm_qq_user_id", None)
+        data["integrations"] = integrations
+        if data != character.data:
+            character.data = data
+            character.version += 1
+            updated.append(character)
+    db.commit()
+    return updated
+
+
 def find_binding(db: Session, campaign_id: str, qq_user_id: str) -> NapCatCharacterBinding | None:
     return db.scalar(select(NapCatCharacterBinding).where(
         NapCatCharacterBinding.campaign_id == campaign_id,

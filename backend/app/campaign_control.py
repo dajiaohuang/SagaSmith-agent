@@ -15,6 +15,8 @@ from app.campaign_turns import (
 )
 from app.campaign_editor import discard_drafts, publish_drafts, undo_latest_draft, validate_settings
 from app.db.models import CampaignSettingDraft
+from app.config import settings
+from app.qq_bindings import set_dice_dm_actor_bindings
 
 
 DM_ONLY_COMMANDS = {
@@ -86,7 +88,7 @@ def execute_command(
     actor_id: str | None,
     is_dm: bool,
 ) -> dict:
-    if command.name in DM_ONLY_COMMANDS and not is_dm:
+    if command.name in DM_ONLY_COMMANDS and command.name != "enter_dice_assistant" and not is_dm:
         return command_result(command.name, "该命令仅限 DM 使用。", ok=False)
     campaign_only = {
         "enter_campaign_edit", "exit_campaign_edit", "publish_settings", "discard_settings",
@@ -144,21 +146,39 @@ def execute_command(
         config["play_style"] = "dice_assistant"
         if config.get("runtime_mode") == "campaign_edit":
             config["runtime_mode"] = "free"
+        configured = [item.strip() for item in settings.napcat_dm_user_ids.split(",") if item.strip()]
+        dm_qq_user_id = str(config.get("dice_dm_qq_user_id") or "").strip()
+        if not dm_qq_user_id and len(configured) == 1:
+            dm_qq_user_id = configured[0]
+        if dm_qq_user_id:
+            config["dice_dm_qq_user_id"] = dm_qq_user_id
+            config.pop("dice_dm_confirmation_pending", None)
+        else:
+            config["dice_dm_confirmation_pending"] = True
         campaign.config = config
         db.commit()
+        bound = set_dice_dm_actor_bindings(db, campaign, dm_qq_user_id or None)
+        if not dm_qq_user_id:
+            return command_result(
+                "enter_dice_assistant",
+                "已进入骰娘模式。谁是 DM？请回复“DM是 QQ号”或 @ DM。",
+                data={"dm_confirmation_pending": True},
+            )
         return command_result("enter_dice_assistant", (
-            f"已在当前战役“{campaign.name}”中进入骰娘模式，战役进度、场景、背景、角色和记忆保持不变。"
-            "不会代替真实 DM 推进预设剧情；会审计被 @ 的操作、在场角色、"
-            "检定和战斗，并维护可检索记忆。保留角色卡、规则、技能、法术、物品、先攻、"
-            "伤害、治疗和战斗回合等全部工具能力，也可以自然提问。"
-        ))
+            f"骰娘模式已开启。DM QQ：{dm_qq_user_id}；已关联 NPC/怪物：{len(bound)}。"
+        ), data={"dm_qq_user_id": dm_qq_user_id, "dm_actor_ids": [item.id for item in bound]})
 
     if command.name == "exit_dice_assistant":
         config = copy.deepcopy(campaign.config or {})
         config["play_style"] = "campaign"
+        config.pop("dice_dm_confirmation_pending", None)
         campaign.config = config
         db.commit()
-        return command_result("exit_dice_assistant", "已退出骰娘模式，恢复战役叙事与记忆更新。")
+        unbound = set_dice_dm_actor_bindings(db, campaign, None)
+        return command_result(
+            "exit_dice_assistant",
+            f"骰娘模式已关闭；已取消 NPC/怪物 DM 绑定：{len(unbound)}。",
+        )
 
     if command.name == "enter_turn_mode":
         state = enter_turn_mode(db, campaign)

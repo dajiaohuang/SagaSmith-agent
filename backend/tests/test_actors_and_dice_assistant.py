@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
 from app.commands import route_command
+from app.config import settings
 from app.main import app
 
 
@@ -23,6 +24,7 @@ def test_dm_actors_roleplay_presence_and_dice_assistant(monkeypatch):
 
     monkeypatch.setattr("app.services.chat_completion", fake_chat)
     monkeypatch.setattr("app.dice_assistant.chat_completion", fake_dice_chat)
+    monkeypatch.setattr(settings, "napcat_dm_user_ids", "777777")
     with TestClient(app) as client:
         campaign = client.post("/campaigns", json={
             "name": "Actors and Dice", "description": "A campaign at the old inn.",
@@ -87,6 +89,10 @@ def test_dm_actors_roleplay_presence_and_dice_assistant(monkeypatch):
         before_events = len(client.get(f"/campaigns/{campaign_id}/events").json())
         entered = client.post(f"/chat/{campaign_id}", json={"session_id": "dice", "message": "/diceassistant"}).json()
         assert entered["ok"]
+        assert entered["data"]["dm_qq_user_id"] == "777777"
+        assert client.get(f"/characters/{npc['id']}").json()["data"]["integrations"]["dice_dm_qq_user_id"] == "777777"
+        assert client.get(f"/characters/{monster['id']}").json()["data"]["integrations"]["dice_dm_qq_user_id"] == "777777"
+        assert "dice_dm_qq_user_id" not in client.get(f"/characters/{player['id']}").json()["data"]["integrations"]
         assert client.get(f"/campaigns/{campaign_id}/status").json()["play_style"] == "dice_assistant"
         assert client.post(f"/chat/{campaign_id}", json={"session_id": "dice", "message": "/memory anything"}).json()["ok"]
         assert client.post(f"/chat/{campaign_id}", json={"session_id": "dice", "message": "/save"}).json()["ok"]
@@ -118,11 +124,21 @@ def test_dm_actors_roleplay_presence_and_dice_assistant(monkeypatch):
         assert not tool_answer["rolls"]
         assert not tool_answer["state_changes"]
         assert "禁止推进或编造剧情" in dice_captured["system"]
+        assert "禁止给出行动建议" in dice_captured["system"]
+        assert "禁止任何扮演文字" in dice_captured["system"]
         assert "roleplay_instructions" not in dice_captured["context"]
         assert "planned_actions" not in dice_captured["context"]
         assert '"name": "Actors and Dice"' in dice_captured["context"]
         assert '"scene": "Inn"' in dice_captured["context"]
         assert "SECRET_DRAGON_PLAN" not in dice_captured["context"]
+        monkeypatch.setattr("app.dice_assistant.chat_completion", lambda *args, **kwargs: "建议你下一步去调查周围。")
+        rejected_advice = client.post(f"/chat/{campaign_id}", json={
+            "session_id": "dice", "player_id": "player", "character_id": player["id"],
+            "message": "接下来怎么处理？",
+        }).json()
+        assert "建议" not in rejected_advice["narration"]
+        assert "周围" not in rejected_advice["narration"]
+        monkeypatch.setattr("app.dice_assistant.chat_completion", fake_dice_chat)
         potion_question = client.post(f"/chat/{campaign_id}", json={
             "session_id": "dice", "player_id": "player", "character_id": player["id"],
             "message": "治疗药水能恢复多少？",
@@ -145,7 +161,7 @@ def test_dm_actors_roleplay_presence_and_dice_assistant(monkeypatch):
         declined = client.post(f"/chat/{campaign_id}", json={
             "session_id": "dice", "player_id": "player", "character_id": player["id"], "message": "不要",
         }).json()
-        assert "不读取前文" in declined["narration"]
+        assert "未读取前文" in declined["narration"]
 
         setup = client.post(f"/chat/{campaign_id}", json={"session_id": "dice", "message": "开始战斗"}).json()
         assert "哪些角色参战" in setup["narration"]
@@ -188,3 +204,27 @@ def test_dm_actors_roleplay_presence_and_dice_assistant(monkeypatch):
         }).json()
         assert exited_dice["command"] == "exit_dice_assistant"
         assert client.get(f"/campaigns/{campaign_id}/status").json()["play_style"] == "campaign"
+        assert "dice_dm_qq_user_id" not in client.get(f"/characters/{npc['id']}").json()["data"]["integrations"]
+        assert "dice_dm_qq_user_id" not in client.get(f"/characters/{monster['id']}").json()["data"]["integrations"]
+
+
+def test_dice_assistant_asks_for_dm_when_uncertain(monkeypatch):
+    monkeypatch.setattr(settings, "napcat_dm_user_ids", "")
+    with TestClient(app) as client:
+        campaign = client.post("/campaigns", json={"name": "Needs DM"}).json()
+        npc = client.post("/characters/build", json={
+            "campaign_id": campaign["id"], "player_name": "DM", "character_name": "Guide",
+            "class_name": "Rogue", "actor_type": "npc",
+            "abilities": {"str": 10, "dex": 10, "con": 10, "int": 10, "wis": 10, "cha": 10},
+        }).json()
+        entered = client.post(f"/chat/{campaign['id']}", json={
+            "session_id": "dice", "player_id": "player", "message": "/diceassistant",
+        }).json()
+        assert entered["data"]["dm_confirmation_pending"]
+        assert "谁是 DM" in entered["narration"]
+        assert "DM是 QQ号" in entered["narration"]
+        confirmed = client.post(f"/chat/{campaign['id']}", json={
+            "session_id": "dice", "player_id": "player", "message": "DM是 888888",
+        }).json()
+        assert confirmed["data"]["dm_qq_user_id"] == "888888"
+        assert client.get(f"/characters/{npc['id']}").json()["data"]["integrations"]["dice_dm_qq_user_id"] == "888888"

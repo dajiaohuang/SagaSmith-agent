@@ -69,6 +69,8 @@ LangGraph orchestrates the DM reasoning phase, DeepSeek generates narrative resp
 - When mentioned to update memory, it reads the current or replied-to message by default and asks whether it should also ingest earlier group-chat history.
 - When mentioned to start combat, it asks for participants and initiative advantage/disadvantage, rolls initiative, and hosts turns using the DM-mode combat flow.
 - Dice assistant mode only disables proactive plot advancement, environment narration, and NPC roleplay. All tool capabilities remain available through natural-language questions, including character sheets, rules, skills, spells, items, memory, checks, damage, healing, and combat.
+- Dice assistant output is restricted to facts, rules, data, calculations, state changes, and necessary clarification questions. It gives no action advice and produces no roleplay, atmosphere, environment narration, or NPC dialogue.
+- Entering dice assistant mode temporarily associates every NPC and monster in the current campaign with the DM QQ account. If the DM cannot be identified uniquely, the assistant asks first. Exiting removes these temporary associations without changing player bindings.
 - Switching from DM mode to dice assistant mode keeps the same campaign. Its progress, scene, background, public settings, actors, and memory remain available as tool-question context.
 - Pending prompts such as combat participants or history confirmation never lock the conversation; combat exit, dice-mode exit, campaign status, other commands, and ordinary questions can interrupt them.
 - Example questions include “What abilities can I use?”, “What does Fireball do?”, and “What is my Athletics bonus?” Campaign-setting edits still require campaign narration mode.

@@ -221,6 +221,34 @@ def test_napcat_active_campaign_switches_bound_character(monkeypatch):
         client.put("/napcat/active-campaign/campaign_001")
 
 
+def test_campaign_confirmed_dm_has_napcat_dm_permission(monkeypatch):
+    used = {}
+
+    class FakeClient:
+        self_id = "123"
+
+    monkeypatch.setattr("app.main.NapCatClient.from_settings", lambda: FakeClient())
+    monkeypatch.setattr("app.main.download_attachments", lambda client, payload: (Path(tempfile.mkdtemp()), [], []))
+    monkeypatch.setattr(
+        "app.main.process_message",
+        lambda *args, **kwargs: used.update(is_dm=kwargs["is_dm"]) or {"narration": "ok"},
+    )
+    monkeypatch.setattr(settings, "napcat_dm_user_ids", "")
+    monkeypatch.setattr(settings, "napcat_token", "")
+
+    with TestClient(app) as client:
+        client.post("/demo/bootstrap")
+        client.patch("/campaigns/campaign_001", json={"config": {
+            "napcat_active": True, "play_style": "dice_assistant", "dice_dm_qq_user_id": "888888",
+        }})
+        response = client.post("/napcat/callback", json={
+            "post_type": "message", "message_type": "private", "user_id": 888888,
+            "message": [{"type": "text", "data": {"text": "status"}}],
+        })
+        assert response.status_code == 200
+        assert used["is_dm"]
+
+
 def test_napcat_group_context_includes_reply_mentions_and_history(monkeypatch):
     used = {}
 
