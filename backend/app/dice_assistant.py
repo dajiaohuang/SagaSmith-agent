@@ -15,10 +15,15 @@ from app.campaign_editor import search_settings
 from app.config import settings
 from app.tools.dice import roll_dice, roll_with_advantage
 from app.tools.spell_catalog import search_spells
-from app.actor_manager import is_present
+from app.actor_manager import is_present, roleplay_brief
 from app.campaign_turns import format_turn_state, start_combat, turn_notification
 from app.qq_bindings import set_dice_dm_actor_bindings
 from app.combat_preferences import combat_preference
+from app.tools.effect_engine import resolve_effective_character, roll_effects_for, consume_roll_effects
+from app.effect_actions import resolve_concentration_damage
+from app.combat_reactions import (
+    format_reaction_prompt, open_reaction_window, reaction_notifications, resolve_ready_reaction_window,
+)
 
 ABILITY_ALIASES = {
     "力量": "str", "strength": "str", "str": "str",
@@ -27,6 +32,10 @@ ABILITY_ALIASES = {
     "智力": "int", "intelligence": "int", "int": "int",
     "感知": "wis", "wisdom": "wis", "wis": "wis",
     "魅力": "cha", "charisma": "cha", "cha": "cha",
+}
+ABILITY_LABELS = {
+    "str": "力量", "dex": "敏捷", "con": "体质",
+    "int": "智力", "wis": "感知", "cha": "魅力",
 }
 SKILL_ALIASES = {
     "运动": "athletics", "運動": "athletics", "athletics": "athletics",
@@ -61,6 +70,11 @@ def _result(narration: str, rolls: list[dict] | None = None, changes: list[dict]
     }
 
 
+def _non_turn_result(result: dict) -> dict:
+    result.setdefault("data", {})["turn_consuming"] = False
+    return result
+
+
 def strict_tool_output(text: str | None, campaign: Campaign) -> str | None:
     if not text:
         return None
@@ -72,12 +86,16 @@ def strict_tool_output(text: str | None, campaign: Campaign) -> str | None:
     return None if any(term in text for term in forbidden) else text.strip()
 
 
-def _dice_output_instructions(campaign: Campaign) -> str:
+def _dice_output_instructions(campaign: Campaign, narrative_mode: bool = False) -> str:
     roleplay = combat_preference(campaign, "roleplay")
     advice = combat_preference(campaign, "advice")
     instructions = []
     if roleplay:
-        instructions.append("战斗中可以附带简短的战斗扮演文字，但不得扮演 NPC 或推进剧情。")
+        instructions.append(
+            "战斗中可以依据已提供资料描写环境、扮演 NPC 并表现已建立剧情。"
+            if narrative_mode else
+            "战斗中可以附带简短的战斗扮演文字，但不得扮演 NPC 或推进剧情。"
+        )
     else:
         instructions.append("禁止任何扮演文字、气氛文字和环境描写。")
     if advice:
@@ -194,6 +212,11 @@ def dice_context_action(
         ]
         selected = [item for item in characters if item.character_name.casefold() in lowered]
         setup_markers = ("角色", "参战", "參戰", "优势", "優勢", "劣势", "劣勢", "participants")
+        if any(marker in lowered for marker in setup_markers) and not selected:
+            return _result(
+                "骰娘：没有找到任何与参战名单匹配的实体角色卡，不能开始战斗。"
+                "请先创建角色卡，并确认角色处于当前战役且在场。"
+            )
         if not selected or not any(marker in lowered for marker in setup_markers):
             return None
         advantage_text = lowered.split("优势", 1)[1].split("；", 1)[0] if "优势" in lowered else ""
@@ -212,6 +235,14 @@ def dice_context_action(
         result = _result(f"骰娘：战斗开始，已按优势状态投掷先攻：\n{order}\n\n{format_turn_state(campaign)}",
                          [item["initiative"] for item in combat["participants"]])
         result["data"] = {"turn_state": combat, "turn_notification": turn_notification(db, campaign),
+                          "combat_participant_cards": [
+                              {
+                                  "character_id": item.id,
+                                  "name": item.character_name,
+                                  "mechanical_card": _mechanical_character_snapshot(item, True),
+                              }
+                              for item in selected
+                          ],
                           "audit_type": "dice_combat_started", "audit_content": text}
         return result
 
@@ -231,16 +262,17 @@ def dice_context_action(
     return None
 
 
-def _modifier(character: Character | None, text: str) -> tuple[str, int]:
+def _modifier(character: Character | None, text: str, combat: bool = False) -> tuple[str, int]:
     lowered = text.casefold()
     if character:
+        effective = resolve_effective_character(character.data, combat).get("effective") or {}
         for alias, skill in SKILL_ALIASES.items():
             if alias in lowered:
-                return skill, int(((character.data.get("skills") or {}).get(skill) or {}).get("bonus", 0))
+                value = (effective.get("skills") or {}).get(skill, 0)
+                return skill, _bonus_value(value)
         for alias, ability in ABILITY_ALIASES.items():
             if alias in lowered:
-                score = int((character.data.get("abilities") or {}).get(ability, 10))
-                return ability, (score - 10) // 2
+                return ability, int((effective.get("ability_modifiers") or {}).get(ability, 0))
     match = re.search(r"([+-]\d+)", lowered)
     return "检定", int(match.group(1)) if match else 0
 
@@ -257,24 +289,92 @@ def _named_entries(entries: list, fallback: str) -> list[str]:
     return result or [fallback]
 
 
-def _character_capabilities(character: Character) -> str:
-    data = character.data or {}
+def _bonus_value(value, default: int = 0) -> int:
+    if isinstance(value, dict):
+        value = value.get("bonus", default)
+    return int(default if value is None else value)
+
+
+def _actor_matches_message(character: Character, message: str) -> bool:
+    lowered = message.casefold()
+    name = character.character_name.casefold()
+    aliases = [str(item).casefold() for item in ((character.data.get("basic") or {}).get("aliases") or [])]
+    if name in lowered or any(alias and alias in lowered for alias in aliases):
+        return True
+    chinese_name = "".join(re.findall(r"[\u4e00-\u9fff]", name))
+    return any(chinese_name[-length:] in lowered for length in range(2, min(5, len(chinese_name) + 1)))
+
+
+def _mechanical_character_snapshot(character: Character, combat: bool = False) -> dict:
+    data = resolve_effective_character(character.data or {}, combat)
+    snapshot = {
+        key: copy.deepcopy(data.get(key))
+        for key in (
+            "basic", "abilities", "combat", "saving_throw_proficiencies", "saving_throws",
+            "skills", "proficiencies", "inventory", "currency", "features", "spells",
+            "spellcasting", "conditions", "active_effects", "notes", "derived", "effective",
+        )
+        if key in data
+    }
+    abilities = data.get("abilities") or {}
+    derived = copy.deepcopy(data.get("derived") or {})
+    ability_modifiers = copy.deepcopy(derived.get("ability_modifiers") or {})
+    for ability in ABILITY_LABELS:
+        if ability not in ability_modifiers and abilities.get(ability) is not None:
+            ability_modifiers[ability] = (int(abilities[ability]) - 10) // 2
+    derived["ability_modifiers"] = ability_modifiers
+    combat = data.get("combat") or {}
+    for field in ("proficiency_bonus", "initiative", "passive_perception", "carrying_capacity"):
+        if derived.get(field) is None and combat.get(field) is not None:
+            derived[field] = combat[field]
+    spellcasting = data.get("spellcasting") or {}
+    if derived.get("spell_save_dc") is None and spellcasting.get("save_dc") is not None:
+        derived["spell_save_dc"] = spellcasting["save_dc"]
+    if derived.get("spell_attack_bonus") is None and spellcasting.get("attack_bonus") is not None:
+        derived["spell_attack_bonus"] = spellcasting["attack_bonus"]
+    snapshot["derived"] = derived
+    return snapshot
+
+
+def _character_capabilities(character: Character, combat: bool = False) -> str:
+    data = _mechanical_character_snapshot(character, combat)
+    effective = data.get("effective") or {}
+    effective_skills = effective.get("skills") or data.get("skills") or {}
     skills = [
         f"{name} {int(details.get('bonus', 0)):+d}"
-        for name, details in (data.get("skills") or {}).items()
+        for name, details in effective_skills.items()
         if details.get("proficient") or details.get("expertise")
     ]
     features = _named_entries(data.get("features") or [], "无已记录特性")
     spells = _named_entries(data.get("spells") or [], "无已记录法术")
     conditions = _named_entries(data.get("conditions") or [], "无")
-    combat = data.get("combat") or {}
+    combat_data = effective.get("combat") or data.get("combat") or {}
+    derived = data.get("derived") or {}
+    modifiers = effective.get("ability_modifiers") or derived.get("ability_modifiers") or {}
+    abilities = effective.get("abilities") or data.get("abilities") or {}
+    ability_line = "、".join(
+        f"{label} {abilities.get(key, '?')}（{int(modifiers[key]):+d}）"
+        if modifiers.get(key) is not None else f"{label} {abilities.get(key, '?')}"
+        for key, label in ABILITY_LABELS.items()
+    )
+    saves = "、".join(
+        f"{name} {_bonus_value(details):+d}"
+        for name, details in (effective.get("saving_throws") or data.get("saving_throws") or {}).items()
+    ) or "无已记录豁免"
+    spellcasting = data.get("spellcasting") or {}
     return (
         f"骰娘：{character.character_name} 当前可用能力概览：\n"
+        f"- 属性与调整值：{ability_line}\n"
+        f"- 战斗数值：AC {combat_data.get('armor_class', '?')}，HP {combat_data.get('current_hp', '?')}/{combat_data.get('max_hp', '?')}，"
+        f"临时 HP {combat_data.get('temp_hp', 0)}，先攻 {_bonus_value(combat_data.get('initiative', derived.get('initiative'))):+d}，"
+        f"熟练加值 {_bonus_value(combat_data.get('proficiency_bonus', derived.get('proficiency_bonus'))):+d}\n"
+        f"- 豁免：{saves}\n"
         f"- 熟练技能：{'、'.join(skills) if skills else '无已记录熟练技能'}\n"
         f"- 特性/能力：{'、'.join(features)}\n"
         f"- 可用法术：{'、'.join(spells)}\n"
-        f"- 状态：HP {combat.get('current_hp', '?')}/{combat.get('max_hp', '?')}，"
-        f"AC {combat.get('armor_class', '?')}，当前状态 {'、'.join(conditions)}"
+        f"- 施法数值：豁免 DC {spellcasting.get('save_dc', derived.get('spell_save_dc', '?'))}，"
+        f"法术攻击 {spellcasting.get('attack_bonus', derived.get('spell_attack_bonus', '?'))}\n"
+        f"- 当前状态：{'、'.join(conditions)}"
     )
 
 
@@ -283,23 +383,27 @@ def resolve_dice_tool_question(
     campaign: Campaign,
     character: Character | None,
     message: str,
+    narrative_mode: bool = False,
 ) -> dict:
     lowered = message.casefold()
     if character and any(term in lowered for term in (
         "我有什么技能", "我会什么", "能放什么", "可用技能", "可用法术", "有什么法术",
-        "有什么特性", "有什么能力", "角色卡", "我的状态", "character sheet",
+        "有什么特性", "有什么能力", "角色卡", "我的状态", "我的ac", "我的 ac",
+        "调整值", "調整值", "属性值", "屬性值", "character sheet",
     )):
-        return _result(_character_capabilities(character))
-
-    data = character.data if character else {}
-    mechanical_character = {
-        key: copy.deepcopy(data.get(key))
-        for key in (
-            "basic", "abilities", "combat", "saving_throws", "skills", "proficiencies",
-            "inventory", "currency", "features", "spells", "spellcasting", "conditions", "notes",
+        return _result(_character_capabilities(character, bool(((campaign.config or {}).get("turn_state") or {}).get("combat"))))
+    if not character and (
+        any(term in lowered for term in ("角色卡", "character sheet", "我的ac", "我的 ac", "调整值", "調整值"))
+        or ("我的" in lowered and any(term in lowered for term in ("技能", "法术", "法術", "属性", "屬性", "状态", "狀態", "豁免", "先攻")))
+    ):
+        return _result(
+            f"骰娘：当前 QQ 在战役“{campaign.name}”中没有绑定角色卡，因此无法读取 AC、属性调整值或其他角色数值。"
+            "请先在该战役中创建或绑定角色卡。"
         )
-        if key in data
-    }
+
+    mechanical_character = _mechanical_character_snapshot(
+        character, bool(((campaign.config or {}).get("turn_state") or {}).get("combat")),
+    ) if character else {}
     rules = search_rules(db, message, 4)
     spells = search_spells(message, settings.data_dir, 4)
     memory_package = build_memory_package(db, campaign.id, message, limit=5)
@@ -307,7 +411,7 @@ def resolve_dice_tool_question(
     recent_events = db.scalars(
         select(CampaignEvent).where(
             CampaignEvent.campaign_id == campaign.id,
-            CampaignEvent.visibility != "dm_only",
+            *([] if narrative_mode else [CampaignEvent.visibility != "dm_only"]),
         )
         .order_by(CampaignEvent.created_at.desc()).limit(12)
     ).all()
@@ -327,6 +431,33 @@ def resolve_dice_tool_question(
         for item in db.scalars(select(Character).where(Character.campaign_id == campaign.id)).all()
         if is_present(item)
     ]
+    combat_active = bool(((campaign.config or {}).get("turn_state") or {}).get("combat"))
+    participants = ((campaign.config or {}).get("turn_state") or {}).get("participants") or []
+    participant_by_id = {
+        item.id: item
+        for item in db.scalars(select(Character).where(Character.campaign_id == campaign.id)).all()
+    }
+    combat_participant_cards = [
+        {
+            "character_id": participant.get("character_id"),
+            "name": participant.get("name"),
+            "actor_type": participant.get("actor_type"),
+            "initiative": participant.get("initiative"),
+            "mechanical_card": _mechanical_character_snapshot(actor, combat_active),
+        }
+        for participant in participants
+        if (actor := participant_by_id.get(participant.get("character_id"))) is not None
+    ]
+    target_actor_cards = [
+        item for item in combat_participant_cards
+        if (actor := participant_by_id.get(item.get("character_id"))) is not None
+        and _actor_matches_message(actor, message)
+    ]
+    present_dm_actor_profiles = [
+        roleplay_brief(item)
+        for item in participant_by_id.values()
+        if is_present(item) and (item.data.get("basic") or {}).get("actor_type") in {"npc", "monster"}
+    ] if narrative_mode else []
     context = {
         "current_campaign": {
             "id": campaign.id,
@@ -349,31 +480,51 @@ def resolve_dice_tool_question(
                 "content": item.content, "visibility": item.visibility,
             }
             for item in campaign_settings
-            if item.visibility != "dm_only"
+            if narrative_mode or item.visibility != "dm_only"
         ],
         "bound_character": mechanical_character or None,
+        "combat_participant_cards": combat_participant_cards,
+        "target_actor_cards": target_actor_cards,
         "present_actors": present,
+        "present_dm_actor_profiles": present_dm_actor_profiles,
         "relevant_rules": [
             {"source": item.get("source"), "section": item.get("section"), "text": item.get("chunk_text")}
             for item in rules
         ],
         "relevant_spells": spells,
         "relevant_memory": [
-            item for item in memory_package["memories"] if item.get("visibility") != "dm_only"
+            item for item in memory_package["memories"]
+            if narrative_mode or item.get("visibility") != "dm_only"
         ],
     }
-    output_instructions = _dice_output_instructions(campaign)
+    output_instructions = _dice_output_instructions(campaign, narrative_mode)
+    role_instructions = (
+        "你是当前战役的地下城主。战斗机械规则与骰娘模式完全一致，必须依据参战者实体卡、有效数值、"
+        "持续效果和反应窗口结算。在机械事实之外，可以依据战役记忆和 present_dm_actor_profiles "
+        "描写环境、推进已建立的剧情并扮演 NPC，但不得篡改或虚构机械数值。"
+        if narrative_mode else
+        "你是桌面跑团的工具型骰娘。自然、直接地回答规则、角色卡、技能、法术、物品、"
+        "检定、战斗计算，以及当前战役的进度、场景、背景、角色和已记录事实问题。"
+    )
+    closing_instructions = (
+        "允许依据已提供内容进行 NPC 台词、战斗叙述和剧情表现。"
+        if narrative_mode else
+        "始终禁止 NPC 台词和剧情续写。禁止推进或编造剧情，禁止替真实 DM 决定结果。"
+    )
     answer = strict_tool_output(chat_completion([
         {
             "role": "system",
             "content": (
-                "你是桌面跑团的工具型骰娘。自然、直接地回答规则、角色卡、技能、法术、物品、"
-                "检定、战斗计算，以及当前战役的进度、场景、背景、角色和已记录事实问题。"
-                "骰娘始终运行在 current_campaign 所指向的当前战役内，切换模式不会切换或清空战役。"
+                f"{role_instructions}"
+                "系统始终运行在 current_campaign 所指向的当前战役内，切换玩法不会切换或清空战役。"
                 "只能依据提供的战役上下文、机械数据和记忆回答。"
+                "战斗结算必须从 target_actor_cards 或 combat_participant_cards 读取目标 AC、HP、豁免和其他机械数值；"
+                "不得用聊天记录中的假设值替代实体角色卡。"
+                "战斗中声明攻击、施法或其他可能触发反应的行动时，先说明行动和所需投掷公式，"
+                "不要提前给出投掷结果；系统会先处理所有角色的反应决定。"
                 "只输出事实、数据、规则引用、计算结果、状态变更或必要的澄清问题。"
                 f"{output_instructions}"
-                "始终禁止 NPC 台词和剧情续写。禁止推进或编造剧情，禁止替真实 DM 决定结果。"
+                f"{closing_instructions}"
                 "信息不足时只列出缺少的字段。"
             ),
         },
@@ -381,6 +532,21 @@ def resolve_dice_tool_question(
         {"role": "user", "content": message},
     ], temperature=0.2), campaign)
     if answer:
+        roll_requested = bool(ROLL_REQUEST_RE.search(answer))
+        requested_roll = ROLL_FORMULA_RE.search(answer) if roll_requested else None
+        if roll_requested and bool(((campaign.config or {}).get("turn_state") or {}).get("combat")):
+            formula = re.sub(r"\s+", "", requested_roll.group(1)) if requested_roll else "1d20"
+            window = open_reaction_window(db, campaign, answer, formula, character.id if character else None)
+            if window:
+                resolved = resolve_ready_reaction_window(db, campaign, window)
+                if resolved:
+                    return resolved
+                result = _result(format_reaction_prompt(window))
+                result["data"] = {
+                    "turn_consuming": False,
+                    "reaction_notifications": reaction_notifications(window),
+                }
+                return result
         answer, automatic_roll = _automatic_tool_roll(answer)
         return _result(answer, [automatic_roll] if automatic_roll else [])
     if rules:
@@ -390,17 +556,23 @@ def resolve_dice_tool_question(
         )
         return _result(f"骰娘：找到以下相关规则资料：\n\n{excerpts}")
     if character:
-        return _result(_character_capabilities(character))
+        return _result(_character_capabilities(character, bool(((campaign.config or {}).get("turn_state") or {}).get("combat"))))
     return _result("骰娘：这个问题需要先绑定角色卡，或补充要查询的规则、法术、物品或检定名称。")
 
 
-def resolve_dice_assistant(db: Session, campaign: Campaign, character: Character | None, message: str) -> dict:
+def resolve_dice_assistant(
+    db: Session,
+    campaign: Campaign,
+    character: Character | None,
+    message: str,
+    narrative_mode: bool = False,
+) -> dict:
     text = " ".join(message.strip().split())
     lowered = text.casefold()
     if character and any(term in lowered for term in ("背包", "物品", "装备", "裝備", "inventory")):
         inventory = character.data.get("inventory") or []
         lines = [f"- {item.get('name', item.get('item_id', '未命名物品'))} × {item.get('quantity', 1)}" for item in inventory]
-        return _result(f"骰娘：{character.character_name} 的物品：\n" + ("\n".join(lines) if lines else "（空）"))
+        return _non_turn_result(_result(f"骰娘：{character.character_name} 的物品：\n" + ("\n".join(lines) if lines else "（空）")))
 
     is_question = any(term in lowered for term in (
         "什么", "多少", "怎么", "如何", "能否", "是否", "应该", "可以吗", "吗", "？", "?",
@@ -408,7 +580,7 @@ def resolve_dice_assistant(db: Session, campaign: Campaign, character: Character
     ))
     has_explicit_dice_formula = bool(re.search(r"(?<!\w)\d*d\d+(?:[+-]\d+)?(?!\w)", lowered))
     if is_question and not has_explicit_dice_formula:
-        return resolve_dice_tool_question(db, campaign, character, message)
+        return _non_turn_result(resolve_dice_tool_question(db, campaign, character, message, narrative_mode))
 
     if character and any(term in lowered for term in ("治疗药水", "治療藥水", "healing potion", "potion of healing")):
         inventory = character.data.get("inventory") or []
@@ -447,17 +619,52 @@ def resolve_dice_assistant(db: Session, campaign: Campaign, character: Character
         after = max(0, min(maximum, before + delta))
         update_character(db, character, {"combat": {"current_hp": after}}, text, "dice_assistant_hp")
         change = {"type": "hp_change", "character_id": character.id, "before": before, "after": after}
-        return _result(f"骰娘：{character.character_name} HP {before}/{maximum} → {after}/{maximum}。", changes=[change])
+        concentration = resolve_concentration_damage(db, campaign, character, abs(delta)) if hp_change else None
+        narration = f"骰娘：{character.character_name} HP {before}/{maximum} → {after}/{maximum}。"
+        rolls = []
+        if concentration:
+            rolls.append(concentration["roll"])
+            narration += (
+                f"\n专注豁免 DC {concentration['dc']}：{concentration['roll']['total']}，"
+                + ("专注维持。" if concentration["success"] else "专注中断。")
+            )
+            change["concentration"] = concentration
+        return _result(narration, rolls=rolls, changes=[change])
 
     if any(term in lowered for term in ("检定", "檢定", "豁免", "check", "save", "先攻", "initiative")):
-        label, modifier = _modifier(character, lowered)
+        combat_active = bool(((campaign.config or {}).get("turn_state") or {}).get("combat"))
+        label, modifier = _modifier(character, lowered, combat_active)
         if "先攻" in lowered or "initiative" in lowered:
             label = "先攻"
-            modifier = int(((character.data.get("combat") or {}).get("initiative", modifier))) if character else modifier
+            if character:
+                effective = resolve_effective_character(character.data, combat_active).get("effective") or {}
+                modifier = int((effective.get("combat") or {}).get("initiative", modifier))
         disadvantage = any(term in lowered for term in ("劣势", "劣勢", "disadvantage"))
         advantage = any(term in lowered for term in ("优势", "優勢", "advantage"))
+        roll_type = (
+            "saving_throw" if any(term in lowered for term in ("豁免", "save"))
+            else "attack_roll" if any(term in lowered for term in ("攻击", "攻擊", "attack"))
+            else "ability_check"
+        )
+        roll_context = roll_effects_for(resolve_effective_character(character.data, combat_active), roll_type) if character else {
+            "advantage": "normal", "bonus_dice": [], "effect_ids": [],
+        }
+        if not advantage and not disadvantage:
+            advantage = roll_context["advantage"] == "advantage"
+            disadvantage = roll_context["advantage"] == "disadvantage"
         roll = roll_with_advantage(modifier, disadvantage) if advantage or disadvantage else roll_dice(f"1d20{modifier:+d}")
+        bonus_rolls = [roll_dice(formula) for formula in roll_context["bonus_dice"]]
+        if bonus_rolls:
+            roll["base_total"] = roll["total"]
+            roll["bonus_dice"] = bonus_rolls
+            roll["total"] += sum(item["total"] for item in bonus_rolls)
+        if character and roll_context["effect_ids"]:
+            next_data, consumed = consume_roll_effects(character.data, roll_context["effect_ids"], roll_type)
+            if consumed:
+                update_character(db, character, {"active_effects": next_data["active_effects"]},
+                                 f"consumed effects on {roll_type}", "effect_consumed")
         mode = "劣势" if disadvantage else "优势" if advantage else "普通"
-        return _result(f"骰娘：{label}检定（{mode}，修正 {modifier:+d}）= {roll['total']}。", [roll])
+        bonus_text = f"，额外骰 {roll_context['bonus_dice']}" if bonus_rolls else ""
+        return _result(f"骰娘：{label}检定（{mode}，修正 {modifier:+d}{bonus_text}）= {roll['total']}。", [roll])
 
-    return resolve_dice_tool_question(db, campaign, character, message)
+    return resolve_dice_tool_question(db, campaign, character, message, narrative_mode)

@@ -1,9 +1,5 @@
-import os
 import tempfile
 from pathlib import Path
-
-os.environ.setdefault("DATABASE_URL", f"sqlite:///{Path(tempfile.gettempdir()).joinpath('dnd_dm_agent_test_api.db').as_posix()}")
-os.environ.setdefault("DATA_DIR", str(Path(__file__).parents[2] / "data"))
 
 from fastapi.testclient import TestClient
 
@@ -183,6 +179,33 @@ def test_napcat_group_turn_notification_ats_bound_player(monkeypatch):
         assert response.status_code == 200
         assert response.json()["reply"][1] == {"type": "at", "data": {"qq": "456"}}
         assert not sent
+
+
+def test_napcat_group_reaction_notification_ats_eligible_players(monkeypatch):
+    class FakeClient:
+        self_id = "123"
+
+    monkeypatch.setattr("app.main.NapCatClient.from_settings", lambda: FakeClient())
+    monkeypatch.setattr("app.main.download_attachments", lambda client, payload: (Path(tempfile.mkdtemp()), [], []))
+    monkeypatch.setattr(
+        "app.main.process_message",
+        lambda *args, **kwargs: {
+            "narration": "Action declared; no roll yet.",
+            "data": {"reaction_notifications": [
+                {"qq_user_id": "456", "name": "Hero", "options": ["Shield"]},
+                {"qq_user_id": "789", "name": "Guard", "options": ["Parry"]},
+            ]},
+        },
+    )
+    monkeypatch.setattr(settings, "napcat_campaign_id", "campaign_001")
+    with TestClient(app) as client:
+        client.post("/demo/bootstrap")
+        response = client.post("/napcat/callback", json={
+            "post_type": "message", "message_type": "group", "group_id": 88, "user_id": 999,
+            "message": [{"type": "at", "data": {"qq": "123"}}, {"type": "text", "data": {"text": "attack"}}],
+        })
+        ats = [item["data"]["qq"] for item in response.json()["reply"] if item["type"] == "at"]
+        assert ats == ["456", "789"]
 
 
 def test_napcat_active_campaign_switches_bound_character(monkeypatch):

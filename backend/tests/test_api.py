@@ -1,12 +1,3 @@
-import os
-import tempfile
-from pathlib import Path
-
-db_path = Path(tempfile.gettempdir()) / "dnd_dm_agent_test_api.db"
-db_path.unlink(missing_ok=True)
-os.environ["DATABASE_URL"] = f"sqlite:///{db_path.as_posix()}"
-os.environ["DATA_DIR"] = str(Path(__file__).parents[2] / "data")
-
 from fastapi.testclient import TestClient
 from app.main import app
 

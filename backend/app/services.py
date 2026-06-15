@@ -19,9 +19,13 @@ from app.llm import chat_completion
 from app.tools.dice import roll_dice, roll_with_advantage
 from app.tools.spell_catalog import search_spells
 from app.tools.item_schema import CurrencyWallet, normalize_inventory
+from app.tools.effect_engine import advance_effect_durations, normalize_effects, resolve_effective_character
 from app.campaign_editor import search_settings, suggest_setting_updates_for_event
 from app.actor_manager import is_dm_actor, is_present, roleplay_brief
 from app.combat_preferences import combat_preference
+from app.combat_reactions import (
+    format_reaction_prompt, open_reaction_window, reaction_notifications, resolve_ready_reaction_window,
+)
 
 
 def uid(prefix: str) -> str:
@@ -53,6 +57,8 @@ def update_character(db: Session, character: Character, patch: dict, reason: str
         patch["inventory"] = normalize_inventory(patch["inventory"])
     if "currency" in patch:
         patch["currency"] = CurrencyWallet.model_validate(patch["currency"] or {}).model_dump(mode="json")
+    if "active_effects" in patch:
+        patch["active_effects"] = normalize_effects(patch["active_effects"])
     after = merge_dict(before, patch)
     character.data = after
     character.version += 1
@@ -287,7 +293,12 @@ def build_dm_context(
     ]
     context = {
         "campaign": serialize(campaign) if campaign else None,
-        "character": serialize(character) if character else None,
+        "character": (
+            {**serialize(character), "data": resolve_effective_character(
+                character.data, bool(((campaign.config or {}).get("turn_state") or {}).get("combat")),
+            )}
+            if character else None
+        ),
         "summaries": [
             {"scope": item.scope, "scope_id": item.scope_id, "summary": item.summary, "open_threads": item.open_threads}
             for item in summaries
@@ -372,6 +383,7 @@ def resolve_chat(db: Session, campaign_id: str, session_id: str | None, characte
     })
     text = message.lower()
     rolls, changes = [], []
+    result_data = {}
     actors = [character_id] if character_id else []
 
     is_potion = any(word in text for word in ["potion", "药水", "治療藥水", "治疗药水"])
@@ -399,9 +411,11 @@ def resolve_chat(db: Session, campaign_id: str, session_id: str | None, characte
     elif is_social:
         bonus = 0
         if character:
-            charisma = character.data.get("abilities", {}).get("cha", 10)
-            proficient = character.data.get("skills", {}).get("persuasion", {}).get("proficient", False)
-            bonus = ability_modifier(charisma) + (character.data.get("combat", {}).get("proficiency_bonus", 2) if proficient else 0)
+            effective = resolve_effective_character(
+                character.data, bool(((campaign.config or {}).get("turn_state") or {}).get("combat")),
+            )["effective"]
+            persuasion = (effective.get("skills") or {}).get("persuasion", 0)
+            bonus = int(persuasion.get("bonus", 0) if isinstance(persuasion, dict) else persuasion)
         roll = roll_dice(f"1d20{bonus:+d}")
         rolls.append(roll)
         dc = 13
@@ -411,7 +425,13 @@ def resolve_chat(db: Session, campaign_id: str, session_id: str | None, characte
     elif is_rest and character:
         combat = character.data.get("combat", {})
         before_hp, max_hp = combat.get("current_hp", 0), combat.get("max_hp", 0)
-        update_character(db, character, {"combat": {"current_hp": max_hp}}, "completed a rest", "rest")
+        trigger = "long_rest" if any(word in text for word in ["long rest", "长休", "長休"]) else "short_rest"
+        next_data, expired = advance_effect_durations(character.data, trigger)
+        update_character(
+            db, character,
+            {"combat": {"current_hp": max_hp}, "active_effects": next_data.get("active_effects", [])},
+            "completed a rest", "rest", [item["definition_id"] for item in expired],
+        )
         changes = [{"type": "hp_change", "before": before_hp, "after": max_hp}]
         narration = f"休整结束，你重新振作起来。生命值恢复至 {max_hp}/{max_hp}。"
     else:
@@ -432,6 +452,22 @@ def resolve_chat(db: Session, campaign_id: str, session_id: str | None, characte
         )
         requested_formula = _requested_roll(narration)
         automatic_roll_count = 0
+        if requested_formula and campaign and bool(((campaign.config or {}).get("turn_state") or {}).get("combat")):
+            window = open_reaction_window(db, campaign, narration, requested_formula, character.id if character else None)
+            if window:
+                resolved = resolve_ready_reaction_window(db, campaign, window)
+                if resolved:
+                    narration = resolved["narration"]
+                    rolls.extend(resolved["rolls"])
+                    result_data.update(resolved["data"])
+                    requested_formula = None
+                else:
+                    narration = format_reaction_prompt(window)
+                    requested_formula = None
+                    result_data.update({
+                        "turn_consuming": False,
+                        "reaction_notifications": reaction_notifications(window),
+                    })
         while requested_formula and automatic_roll_count < 4:
             narration, automatic_roll = _finish_requested_roll(
                 context_prompt, message, narration, requested_formula, combat_instructions,
@@ -448,7 +484,7 @@ def resolve_chat(db: Session, campaign_id: str, session_id: str | None, characte
         memory_plan=graph_state.get("memory_write_plan"),
     )
     return {"campaign_id": campaign_id, "message": message, "narration": narration,
-            "rolls": rolls, "state_changes": changes, "events": [serialize(event)]}
+            "data": result_data, "rolls": rolls, "state_changes": changes, "events": [serialize(event)]}
 
 
 def create_summary(db: Session, campaign_id: str, session_id: str | None) -> CampaignSummary:

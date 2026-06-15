@@ -15,6 +15,8 @@ from app.campaign_turns import (
 from app.campaign_editor import editor_chat
 from app.dice_assistant import clear_dice_pending_state, dice_context_action, resolve_dice_assistant
 from app.actor_manager import list_actors, is_present
+from app.effect_actions import resolve_effect_action
+from app.combat_reactions import handle_reaction_response, reaction_window
 
 
 def process_message(
@@ -40,6 +42,18 @@ def process_message(
         return command_result("threads", "\n".join(lines) or "当前没有开放的剧情线。", data=package)
     dice_mode = (campaign.config or {}).get("play_style") == "dice_assistant"
     command = route_command(message)
+    bound_character = db.get(Character, character_id) if character_id else None
+    reaction_interrupt_commands = {"end_combat", "exit_dice_assistant", "status", "help", "pause", "save"}
+    if reaction_window(campaign) and (not command or command.name not in reaction_interrupt_commands):
+        reaction_result = handle_reaction_response(db, campaign, character_id, message)
+        if reaction_result:
+            if (reaction_result.get("data") or {}).get("turn_consuming"):
+                advance_turn(db, campaign)
+                reaction_result["turn_notification"] = turn_notification(db, campaign)
+            reaction_result["narration"] += f"\n\n{format_turn_state(campaign)}"
+            return audit_dice_result(
+                db, campaign, session_id, character_id, actor_id, message, reaction_result, message_context,
+            )
     if command and not (dice_mode and command.name == "start_combat"):
         if dice_mode:
             clear_dice_pending_state(db, campaign)
@@ -50,6 +64,9 @@ def process_message(
             return audit_dice_result(db, campaign, session_id, character_id, actor_id, message, contextual, message_context)
     if command:
         return execute_command(db, command, campaign, session_id, actor_id, is_dm)
+    effect_action = resolve_effect_action(db, campaign, bound_character, message, actor_id, session_id)
+    if effect_action:
+        return effect_action
     if runtime_mode(campaign) == "campaign_edit":
         if not is_dm:
             return command_result("campaign_edit", "战役编辑模式仅允许 DM 操作。", ok=False)
@@ -68,7 +85,7 @@ def process_message(
             "data": {"query": spell_query, "spells": spells},
         }
     if (campaign.config or {}).get("play_style") == "dice_assistant":
-        character = db.get(Character, character_id) if character_id else None
+        character = bound_character
         if runtime_mode(campaign) == "turn_based":
             allowed, reason = turn_access(campaign, character_id, is_dm)
             if not allowed:
@@ -77,8 +94,9 @@ def process_message(
             if active_actor and active_actor["actor_type"] in {"npc", "monster"} and is_dm:
                 character = db.get(Character, active_actor["character_id"])
             result = resolve_dice_assistant(db, campaign, character, message)
-            advance_turn(db, campaign)
-            result["turn_notification"] = turn_notification(db, campaign)
+            if (result.get("data") or {}).get("turn_consuming", True):
+                advance_turn(db, campaign)
+                result["turn_notification"] = turn_notification(db, campaign)
             result["narration"] += f"\n\n{format_turn_state(campaign)}"
             return audit_dice_result(db, campaign, session_id, character.id if character else None,
                                      actor_id, message, result, message_context)
@@ -97,12 +115,19 @@ def process_message(
     active_actor = current_turn(campaign)
     if active_actor and active_actor["actor_type"] in {"npc", "monster"} and is_dm:
         action_character_id = active_actor["character_id"]
-    result = resolve_chat(db, campaign.id, session_id, action_character_id, message)
     if runtime_mode(campaign) == "turn_based":
-        advance_turn(db, campaign)
-        notification = turn_notification(db, campaign)
-        result["turn_notification"] = notification
+        combat_character = db.get(Character, action_character_id) if action_character_id else None
+        result = resolve_dice_assistant(db, campaign, combat_character, message, narrative_mode=True)
+        result["narration"] = result.get("narration", "").replace("骰娘：", "DM：")
+        result.setdefault("data", {})["audit_type"] = "dm_combat_action"
+        if (result.get("data") or {}).get("turn_consuming", True):
+            advance_turn(db, campaign)
+            result["turn_notification"] = turn_notification(db, campaign)
         result["narration"] += f"\n\n{format_turn_state(campaign)}"
+        return audit_dice_result(
+            db, campaign, session_id, action_character_id, actor_id, message, result, message_context,
+        )
+    result = resolve_chat(db, campaign.id, session_id, action_character_id, message)
     return result
 
 
@@ -131,6 +156,8 @@ def audit_dice_result(
             "rolls": result.get("rolls") or [],
             "state_changes": result.get("state_changes") or [],
             "message_context": message_context or {},
+            "turn_state": (result.get("data") or {}).get("turn_state"),
+            "combat_participant_cards": (result.get("data") or {}).get("combat_participant_cards"),
             "present_actors": [
                 {
                     "character_id": item.id,

@@ -94,6 +94,23 @@
 }
 ```
 
+角色的基础数值保持不变，装备、Buff、Debuff、法术和自定义物品效果统一保存在
+`character.data.active_effects` 或装备物品的 `effects` 中。系统按当前战斗状态实时生成
+`effective` 机械快照，并处理持续时间、叠加、集中、优势/劣势、额外骰和一次性消耗。
+
+DM 模式与骰娘模式共用同一套战斗机械管线，包括参战者角色卡、目标卡、有效数值、
+持续效果、反应窗口、投骰和回合推进。DM 模式仅在此基础上额外读取私密战役内容，
+并允许环境叙述、NPC 扮演和已建立剧情的表现。
+
+自然语言示例：
+
+```text
+给 Hero 添加效果：AC +2，持续 3 回合，仅战斗
+给 Cleric 添加效果 祝福术
+查看效果
+移除效果 祝福术
+```
+
 ### 规则书、法术与多文件解析
 
 - 解析文本、Markdown、JSON、CSV、HTML、DOCX、PPTX、PDF 和 ZIP。
@@ -288,7 +305,7 @@ manage_qq_bindings.bat
 NapCat OneBot HTTP Post URL：
 
 ```text
-http://127.0.0.1:8010/napcat/callback
+http://127.0.0.1:8011/napcat/callback
 ```
 
 维护 QQ 用户与角色卡绑定：
@@ -300,7 +317,7 @@ manage_qq_bindings.bat bind 123456789 char_001 --name 玩家昵称
 manage_qq_bindings.bat unbind 123456789
 ```
 
-NapCat 本体及运行时不包含在本仓库中，请自行安装并设置 `NAPCAT_SOURCE_DIR`，或调整启动脚本中的路径。
+NapCat 已迁移为仓库外共享运行时 `D:\mcp\napcat`。启动脚本优先使用 `D:\mcp\napcat\pkg`，也支持通过 `NAPCAT_SOURCE_DIR` 覆盖路径；默认 callback 端口为 `8011`，可通过 `NAPCAT_CALLBACK_PORT` 覆盖。
 
 ## 导入规则书与原始资料
 
@@ -341,6 +358,8 @@ uv run scripts/install_parse_backends.py --backend markitdown
 | 角色在场状态 | `PATCH /characters/{character_id}/presence` |
 | 物品 Schema | `GET /characters/items/schema` |
 | 升级已有角色物品 | `POST /campaigns/{campaign_id}/characters/inventory/normalize` |
+| 查看持续效果 JSON Schema | `GET /characters/effects/schema` |
+| 查看角色实时有效机械快照 | `GET /characters/{character_id}/effective` |
 | 导出人物卡 | `GET /characters/{character_id}/sheet` |
 | 战役事件 | `GET /campaigns/{campaign_id}/events` |
 | 战役记忆 | `GET /campaigns/{campaign_id}/memories` |

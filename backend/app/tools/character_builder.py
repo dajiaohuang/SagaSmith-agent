@@ -14,6 +14,7 @@ from app.tools.character_rules import (
 )
 from app.tools.spell_catalog import enrich_character_spells
 from app.tools.item_schema import normalize_inventory, CurrencyWallet
+from app.tools.effect_engine import normalize_effects
 
 ABILITY_CELLS = {"str": "E8", "dex": "E10", "con": "E12", "int": "E14", "wis": "E16", "cha": "E18"}
 
@@ -83,6 +84,7 @@ def build_character_data(raw: dict) -> dict:
         "story_role": copy.deepcopy(raw.get("story_role", {})),
         "encounter": {"present": True, **copy.deepcopy(raw.get("encounter", {}))},
         "conditions": [],
+        "active_effects": normalize_effects(raw.get("active_effects")),
         "notes": copy.deepcopy(raw.get("notes", {})),
         "integrations": {"qq_user_ids": []},
     }

@@ -87,6 +87,9 @@ def test_dm_actors_roleplay_presence_and_dice_assistant(monkeypatch):
             "inventory": [{"item_id": "potion_healing", "name": "Potion of Healing", "quantity": 1}],
             "features": [{"name": "Second Wind"}],
             "spells": ["Fireball"],
+            "notes": {"private_player_note": "Hero fears deep water."},
+            "roleplay": {"voice": "Measured and formal."},
+            "story_role": {"personal_goal": "Find the lost banner."},
         }).json()
         npc = client.post("/characters/build", json={
             "campaign_id": campaign_id, "player_name": "DM", "character_name": "Mira",
@@ -176,9 +179,22 @@ def test_dm_actors_roleplay_presence_and_dice_assistant(monkeypatch):
         assert "禁止任何扮演文字" in dice_captured["system"]
         assert "roleplay_instructions" not in dice_captured["context"]
         assert "planned_actions" not in dice_captured["context"]
+        assert "Hero fears deep water." in dice_captured["context"]
+        assert "Measured and formal." not in dice_captured["context"]
+        assert "Find the lost banner." not in dice_captured["context"]
+        assert '"active_effects"' in dice_captured["context"]
+        assert '"derived"' in dice_captured["context"]
+        assert '"ability_modifiers"' in dice_captured["context"]
         assert '"name": "Actors and Dice"' in dice_captured["context"]
         assert '"scene": "Inn"' in dice_captured["context"]
         assert "SECRET_DRAGON_PLAN" not in dice_captured["context"]
+        mechanical_values = client.post(f"/chat/{campaign_id}", json={
+            "session_id": "dice", "player_id": "player", "character_id": player["id"],
+            "message": "我的AC和属性调整值是多少？",
+        }).json()
+        assert "AC 11" in mechanical_values["narration"]
+        assert "力量 16（+3）" in mechanical_values["narration"]
+        assert "敏捷 12（+1）" in mechanical_values["narration"]
         monkeypatch.setattr("app.dice_assistant.chat_completion", lambda *args, **kwargs: "建议你下一步去调查周围。")
         rejected_advice = client.post(f"/chat/{campaign_id}", json={
             "session_id": "dice", "player_id": "player", "character_id": player["id"],
@@ -244,6 +260,18 @@ def test_dm_actors_roleplay_presence_and_dice_assistant(monkeypatch):
         assert started["data"]["turn_state"]["combat"]
         modes = {item["name"]: item["initiative_mode"] for item in started["data"]["turn_state"]["participants"]}
         assert modes == {"Hero": "advantage", "Mira": "normal", "Ogre": "disadvantage"}
+        current = started["data"]["turn_state"]["participants"][0]
+        target_lookup = client.post(f"/chat/{campaign_id}", json={
+            "session_id": "dice",
+            "character_id": current["character_id"] if current["actor_type"] == "player" else None,
+            "message": "攻击Ogre时读取目标AC和HP是多少？",
+        }).json()
+        assert "工具回答" in target_lookup["narration"]
+        assert '"combat_participant_cards"' in dice_captured["context"]
+        assert '"target_actor_cards"' in dice_captured["context"]
+        assert '"name": "Ogre"' in dice_captured["context"]
+        assert '"armor_class": 11' in dice_captured["context"]
+        assert '"max_hp": 59' in dice_captured["context"]
         client.post(f"/chat/{campaign_id}", json={"session_id": "dice", "message": "/endcombat"})
 
         client.post(f"/chat/{campaign_id}", json={"session_id": "dice", "message": "开始战斗"})
@@ -276,3 +304,195 @@ def test_dice_assistant_asks_for_dm_when_uncertain(monkeypatch):
         }).json()
         assert confirmed["data"]["dm_qq_user_id"] == "888888"
         assert client.get(f"/characters/{npc['id']}").json()["data"]["integrations"]["dice_dm_qq_user_id"] == "888888"
+
+
+def test_dice_assistant_explains_missing_character_binding():
+    with TestClient(app) as client:
+        campaign = client.post("/campaigns", json={
+            "name": "Unbound Dice Campaign",
+            "config": {"play_style": "dice_assistant"},
+        }).json()
+        result = client.post(f"/chat/{campaign['id']}", json={
+            "session_id": "unbound", "player_id": "player", "message": "我的AC和调整值是多少？",
+        }).json()
+        assert "Unbound Dice Campaign" in result["narration"]
+        assert "没有绑定角色卡" in result["narration"]
+        client.post(f"/chat/{campaign['id']}", json={"session_id": "unbound", "message": "开始战斗"})
+        refused = client.post(f"/chat/{campaign['id']}", json={
+            "session_id": "unbound", "message": "角色：亡语鬼婆",
+        }).json()
+        assert "没有找到任何与参战名单匹配的实体角色卡" in refused["narration"]
+
+
+def test_natural_effect_actions_apply_and_expire_in_combat():
+    with TestClient(app) as client:
+        campaign = client.post("/campaigns", json={"name": "Effects Campaign"}).json()
+        character = client.post("/characters/build", json={
+            "campaign_id": campaign["id"], "player_name": "Player", "character_name": "Hero",
+            "class_name": "Fighter",
+            "abilities": {"str": 16, "dex": 12, "con": 14, "int": 10, "wis": 10, "cha": 10},
+            "inventory": [{
+                "name": "Guardian Ring", "equipped": True,
+                "effects": [{"name": "Ring Guard", "modifiers": [
+                    {"target": "combat.armor_class", "operation": "add", "value": 1},
+                ]}],
+            }],
+        }).json()
+        added = client.post(f"/chat/{campaign['id']}", json={
+            "session_id": "effects", "character_id": character["id"],
+            "message": "给Hero添加效果：AC +2，持续 1 回合，仅战斗",
+        }).json()
+        assert added["command"] == "add_effect"
+        assert added["data"]["effect"]["scope"] == "combat_only"
+
+        client.post(f"/chat/{campaign['id']}", json={"session_id": "effects", "message": "/combat"})
+        client.post(f"/chat/{campaign['id']}", json={"session_id": "effects", "message": "/diceassistant"})
+        during = client.post(f"/chat/{campaign['id']}", json={
+            "session_id": "effects", "character_id": character["id"], "message": "我的AC和调整值是多少？",
+        }).json()
+        assert "AC 14" in during["narration"]
+        listed = client.post(f"/chat/{campaign['id']}", json={
+            "session_id": "effects", "character_id": character["id"], "message": "查看效果",
+        }).json()
+        assert "Guardian Ring" not in listed["narration"]
+        assert "AC +2" in listed["narration"]
+
+        client.post(f"/chat/{campaign['id']}", json={"session_id": "effects", "message": "/next"})
+        after = client.post(f"/chat/{campaign['id']}", json={
+            "session_id": "effects", "character_id": character["id"], "message": "查看效果",
+        }).json()
+        assert "AC +2" not in after["narration"]
+        assert after["data"]["effective"]["combat"]["armor_class"] == 12
+
+
+def test_damage_resolves_and_breaks_concentration(monkeypatch):
+    monkeypatch.setattr(
+        "app.effect_actions.roll_dice",
+        lambda formula: {"formula": formula, "rolls": [1], "modifier": 2, "total": 3},
+    )
+    with TestClient(app) as client:
+        campaign = client.post("/campaigns", json={"name": "Concentration Campaign"}).json()
+        character = client.post("/characters/build", json={
+            "campaign_id": campaign["id"], "player_name": "Player", "character_name": "Cleric",
+            "class_name": "Cleric",
+            "abilities": {"str": 10, "dex": 10, "con": 14, "int": 10, "wis": 16, "cha": 10},
+        }).json()
+        client.post(f"/chat/{campaign['id']}", json={
+            "session_id": "concentration", "character_id": character["id"], "message": "给Cleric添加效果 祝福术",
+        })
+        client.post(f"/chat/{campaign['id']}", json={"session_id": "concentration", "message": "/diceassistant"})
+        damaged = client.post(f"/chat/{campaign['id']}", json={
+            "session_id": "concentration", "character_id": character["id"], "message": "伤害 6",
+        }).json()
+        assert "专注中断" in damaged["narration"]
+        assert client.get(f"/characters/{character['id']}").json()["data"]["active_effects"] == []
+
+
+def test_combat_reaction_window_pauses_roll_and_turn_until_player_decides(monkeypatch):
+    monkeypatch.setattr(
+        "app.campaign_turns.roll_dice",
+        lambda formula: {
+            "formula": formula, "rolls": [10], "modifier": int(formula.replace("1d20", "") or 0),
+            "total": 10 + int(formula.replace("1d20", "") or 0),
+        },
+    )
+    monkeypatch.setattr(
+        "app.dice_assistant.chat_completion",
+        lambda *args, **kwargs: "Goblin declares a claw attack against Hero. Please roll 1d20+5 for the attack.",
+    )
+    with TestClient(app) as client:
+        campaign = client.post("/campaigns", json={"name": "Reaction Campaign"}).json()
+        hero = client.post("/characters/build", json={
+            "campaign_id": campaign["id"], "player_name": "Player", "character_name": "Hero",
+            "class_name": "Wizard",
+            "abilities": {"str": 8, "dex": 12, "con": 12, "int": 16, "wis": 10, "cha": 10},
+            "features": [{"name": "Shield reaction", "activation": "reaction"}],
+        }).json()
+        goblin = client.post("/characters/build", json={
+            "campaign_id": campaign["id"], "player_name": "DM", "character_name": "Goblin",
+            "class_name": "Fighter", "actor_type": "monster",
+            "abilities": {"str": 14, "dex": 20, "con": 10, "int": 8, "wis": 8, "cha": 8},
+            "features": [{"name": "Shield reaction", "activation": "reaction"}],
+        }).json()
+        client.put("/napcat/bindings/456", json={
+            "campaign_id": campaign["id"], "character_id": hero["id"],
+        })
+        client.post(f"/chat/{campaign['id']}", json={"session_id": "reaction", "message": "/diceassistant"})
+        client.post(f"/chat/{campaign['id']}", json={"session_id": "reaction", "message": "开始战斗"})
+        started = client.post(f"/chat/{campaign['id']}", json={
+            "session_id": "reaction", "message": "角色：Hero、Goblin",
+        }).json()
+        assert started["data"]["turn_state"]["participants"][0]["character_id"] == goblin["id"]
+
+        declared = client.post(f"/chat/{campaign['id']}", json={
+            "session_id": "reaction", "message": "Goblin attacks Hero",
+        }).json()
+        assert not declared["rolls"]
+        assert "尚未投掷" in declared["narration"]
+        assert declared["data"]["reaction_notifications"][0]["qq_user_id"] == "456"
+        assert client.get(f"/campaigns/{campaign['id']}/status").json()["turn_state"]["participants"][0]["character_id"] == goblin["id"]
+
+        resolved = client.post(f"/chat/{campaign['id']}", json={
+            "session_id": "reaction", "player_id": "player", "character_id": hero["id"], "message": "不反应",
+        }).json()
+        assert resolved["rolls"][0]["formula"] == "1d20+5"
+        assert "无人使用反应" in resolved["narration"]
+        assert resolved["turn_notification"]["character_id"] == hero["id"]
+
+        automated = client.post(f"/chat/{campaign['id']}", json={
+            "session_id": "reaction", "player_id": "player", "character_id": hero["id"],
+            "message": "Hero attacks Goblin",
+        }).json()
+        assert automated["rolls"][0]["formula"] == "1d20+5"
+        assert "Goblin使用Shield reaction" in automated["narration"]
+
+
+def test_dm_combat_uses_dice_mechanics_with_private_roleplay_context(monkeypatch):
+    captured = {}
+
+    def fake_dice_chat(messages, temperature=0.2):
+        captured["system"] = messages[0]["content"]
+        captured["context"] = messages[1]["content"]
+        return "The witch hisses from behind the standing stone; no roll is required."
+
+    monkeypatch.setattr("app.dice_assistant.chat_completion", fake_dice_chat)
+    monkeypatch.setattr(
+        "app.services.chat_completion",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("DM combat must use the shared dice mechanics path")),
+    )
+    with TestClient(app) as client:
+        campaign = client.post("/campaigns", json={"name": "Shared Combat"}).json()
+        player = client.post("/characters/build", json={
+            "campaign_id": campaign["id"], "player_name": "Player", "character_name": "Hero",
+            "class_name": "Fighter",
+            "abilities": {"str": 16, "dex": 12, "con": 14, "int": 10, "wis": 10, "cha": 10},
+        }).json()
+        witch = client.post("/characters/build", json={
+            "campaign_id": campaign["id"], "player_name": "DM", "character_name": "Whisper Witch",
+            "class_name": "Wizard", "actor_type": "monster",
+            "abilities": {"str": 8, "dex": 10, "con": 12, "int": 16, "wis": 14, "cha": 14},
+            "roleplay": {"voice": "A cracked whisper.", "secrets": ["She serves the northern gate."]},
+            "story_role": {"planned_actions": ["Delay the party until moonrise."]},
+        }).json()
+        client.patch(f"/campaigns/{campaign['id']}", json={"config": {
+            "runtime_mode": "turn_based",
+            "turn_state": {
+                "combat": True, "round": 1, "turn_index": 0,
+                "participants": [
+                    {"character_id": witch["id"], "name": "Whisper Witch", "actor_type": "monster",
+                     "initiative": {"total": 18, "modifier": 0}, "reaction_available": True},
+                    {"character_id": player["id"], "name": "Hero", "actor_type": "player",
+                     "initiative": {"total": 12, "modifier": 1}, "reaction_available": True},
+                ],
+            },
+        }})
+        result = client.post(f"/chat/{campaign['id']}", json={
+            "session_id": "shared", "message": "The witch threatens Hero.",
+        }).json()
+        assert result["narration"].startswith("The witch hisses")
+        assert result["events"][0]["event_type"] == "dm_combat_action"
+        assert "地下城主" in captured["system"]
+        assert "扮演 NPC" in captured["system"]
+        assert "A cracked whisper." in captured["context"]
+        assert "Delay the party until moonrise." in captured["context"]
+        assert '"combat_participant_cards"' in captured["context"]

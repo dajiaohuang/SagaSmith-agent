@@ -3,10 +3,14 @@ setlocal EnableExtensions
 chcp 65001 >nul
 
 set "ROOT=%~dp0"
+for %%I in ("%ROOT%..\napcat") do set "NAPCAT_HOME=%%~fI"
 set "NAPCAT_SOURCE=%NAPCAT_SOURCE_DIR%"
+if "%NAPCAT_SOURCE%"=="" if exist "%NAPCAT_HOME%\pkg" set "NAPCAT_SOURCE=%NAPCAT_HOME%\pkg"
+if "%NAPCAT_SOURCE%"=="" if exist "%NAPCAT_HOME%\runtime" set "NAPCAT_SOURCE=%NAPCAT_HOME%\runtime"
 if "%NAPCAT_SOURCE%"=="" if exist "%ROOT%tools\napcat\runtime" set "NAPCAT_SOURCE=%ROOT%tools\napcat\runtime"
 if "%NAPCAT_SOURCE%"=="" if exist "%ROOT%tools\napcat\pkg" set "NAPCAT_SOURCE=%ROOT%tools\napcat\pkg"
-set "CALLBACK_PORT=8010"
+set "CALLBACK_PORT=%NAPCAT_CALLBACK_PORT%"
+if "%CALLBACK_PORT%"=="" set "CALLBACK_PORT=8011"
 
 echo [1/3] Checking DND DM callback service...
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$ours=$false; try { $s=Invoke-RestMethod 'http://127.0.0.1:%CALLBACK_PORT%/integrations/status' -TimeoutSec 1 -ErrorAction Stop; $ours=($null -ne $s.parsing) } catch {}; if (-not $ours) { $connections=Get-NetTCPConnection -State Listen -LocalPort %CALLBACK_PORT% -ErrorAction SilentlyContinue; foreach ($connection in $connections) { $process=Get-CimInstance Win32_Process -Filter ('ProcessId=' + $connection.OwningProcess); Write-Host ('Port %CALLBACK_PORT% is occupied by: ' + $process.CommandLine); exit 2 } }"
@@ -20,7 +24,7 @@ for /f "tokens=5" %%P in ('netstat -ano ^| findstr ":%CALLBACK_PORT% " ^| findst
 if defined CALLBACK_PID (
   echo Callback port %CALLBACK_PORT% is already listening.
 ) else (
-  start "DND DM NapCat Callback" cmd /k call "%ROOT%run_napcat_callback.bat" %CALLBACK_PORT%
+  start "DND DM NapCat Callback" /min cmd /k call "%ROOT%run_napcat_callback.bat" %CALLBACK_PORT%
 )
 
 echo Waiting for callback health check and initializing the demo campaign...
@@ -34,7 +38,7 @@ if errorlevel 1 (
 echo [2/3] Checking NapCat launcher...
 if "%NAPCAT_SOURCE%"=="" (
   echo NapCat runtime not found. Set NAPCAT_SOURCE_DIR or install it under:
-  echo   %ROOT%tools\napcat\runtime
+  echo   %NAPCAT_HOME%\pkg
   pause
   exit /b 1
 )

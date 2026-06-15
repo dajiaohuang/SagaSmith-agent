@@ -3,7 +3,8 @@ setlocal
 set "ROOT=%~dp0"
 set "UV=uv"
 set "PORT=%~1"
-if "%PORT%"=="" set "PORT=8010"
+if "%PORT%"=="" set "PORT=%NAPCAT_CALLBACK_PORT%"
+if "%PORT%"=="" set "PORT=8011"
 where %UV% >nul 2>nul
 if errorlevel 1 (
   echo uv is not installed or not on PATH.

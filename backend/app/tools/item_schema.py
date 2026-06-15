@@ -40,6 +40,11 @@ class ItemEffect(FlexibleModel):
     formula: str = ""
     uses_resource: str = ""
     data: dict[str, Any] = Field(default_factory=dict)
+    activation: dict[str, Any] = Field(default_factory=dict)
+    scope: str = "both"
+    duration: dict[str, Any] = Field(default_factory=dict)
+    stacking: dict[str, Any] = Field(default_factory=dict)
+    modifiers: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class WeaponData(FlexibleModel):
@@ -185,12 +190,14 @@ def normalize_inventory(raw: list[Any] | None) -> list[dict[str, Any]]:
 
 
 def normalize_character_inventory(data: dict[str, Any]) -> dict[str, Any]:
+    from app.tools.effect_engine import normalize_effects
     result = copy.deepcopy(data)
     if "inventory" in result:
         result["inventory"] = normalize_inventory(result.get("inventory"))
     else:
         result["inventory"] = []
     result["currency"] = CurrencyWallet.model_validate(result.get("currency") or {}).model_dump(mode="json")
+    result["active_effects"] = normalize_effects(result.get("active_effects"))
     return result
 
 
@@ -207,5 +214,6 @@ def item_schema_catalog() -> dict[str, Any]:
         "storage_rule": "Every carried or equipped object is stored once in inventory. Equipment uses equipped fields.",
         "custom_rule": "Unknown fields are preserved and arbitrary homebrew data belongs in custom_data.",
         "item_json_schema": CharacterItem.model_json_schema(),
+        "effect_rule": "Equipped item effects may declare activation, scope, duration, stacking, and mechanical modifiers.",
         "currency_json_schema": CurrencyWallet.model_json_schema(),
     }

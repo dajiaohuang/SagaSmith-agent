@@ -1,8 +1,9 @@
 @echo off
 setlocal
 set "ROOT=%~dp0"
-set "ARCHIVE=%ROOT%tools\napcat\NapCat.Shell.Windows.OneKey.zip"
-set "TARGET=%ROOT%tools\napcat\runtime"
+for %%I in ("%ROOT%..\napcat") do set "NAPCAT_HOME=%%~fI"
+set "ARCHIVE=%NAPCAT_HOME%\NapCat.Shell.Windows.OneKey.zip"
+set "TARGET=%NAPCAT_HOME%\runtime"
 if not exist "%ARCHIVE%" (
   echo Missing NapCat archive: "%ARCHIVE%"
   exit /b 1
@@ -12,4 +13,3 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "Expand-Archive -LiteralP
 if errorlevel 1 exit /b 1
 echo NapCat installer extracted to "%TARGET%".
 echo Run "%TARGET%\NapCatInstaller.exe" to install or update the local NapCat shell.
-

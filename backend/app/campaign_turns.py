@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.db.models import Campaign, Character, NapCatCharacterBinding
 from app.tools.dice import roll_dice, roll_with_advantage
 from app.actor_manager import actor_type, is_present
+from app.tools.effect_engine import advance_effect_durations, resolve_effective_character
 
 
 def runtime_mode(campaign: Campaign) -> str:
@@ -22,8 +23,9 @@ def is_combat(campaign: Campaign) -> bool:
     return bool(turn_state(campaign).get("combat"))
 
 
-def initiative_modifier(character: Character) -> int:
-    combat = character.data.get("combat", {})
+def initiative_modifier(character: Character, combat_active: bool = True) -> int:
+    effective = resolve_effective_character(character.data, combat_active).get("effective") or {}
+    combat = effective.get("combat") or {}
     if combat.get("initiative") is not None:
         return int(combat["initiative"])
     dexterity = int(character.data.get("abilities", {}).get("dex", 10))
@@ -36,6 +38,7 @@ def _participant(character: Character, initiative: dict | None = None) -> dict:
         "name": character.character_name,
         "actor_type": actor_type(character),
         "initiative": initiative,
+        "reaction_available": True,
     }
 
 
@@ -53,6 +56,22 @@ def _characters(db: Session, campaign_id: str) -> list[Character]:
         item for item in db.scalars(select(Character).where(Character.campaign_id == campaign_id)).all()
         if is_present(item)
     ]
+
+
+def advance_character_effects(db: Session, campaign: Campaign, trigger: str) -> list[dict]:
+    changes = []
+    from app.services import update_character
+    for character in _characters(db, campaign.id):
+        next_data, expired = advance_effect_durations(character.data, trigger)
+        if not expired:
+            continue
+        update_character(
+            db, character, {"active_effects": next_data["active_effects"]},
+            f"effect duration trigger: {trigger}", "effects_expired",
+            [item["definition_id"] for item in expired],
+        )
+        changes.extend({"character_id": character.id, "effect": item} for item in expired)
+    return changes
 
 
 def enter_turn_mode(db: Session, campaign: Campaign) -> dict:
@@ -84,7 +103,7 @@ def start_combat(
     for character in _characters(db, campaign.id):
         if participant_ids is not None and character.id not in participant_ids:
             continue
-        modifier = initiative_modifier(character)
+        modifier = initiative_modifier(character, True)
         mode = (initiative_modes or {}).get(character.id, "normal")
         if mode in {"advantage", "disadvantage"}:
             initiative = roll_with_advantage(modifier, disadvantage=mode == "disadvantage")
@@ -105,6 +124,11 @@ def start_combat(
 
 
 def end_combat(db: Session, campaign: Campaign) -> None:
+    advance_character_effects(db, campaign, "combat_end")
+    config = copy.deepcopy(campaign.config or {})
+    config.pop("reaction_window", None)
+    campaign.config = config
+    db.commit()
     _save(db, campaign, "free", {})
 
 
@@ -122,11 +146,16 @@ def advance_turn(db: Session, campaign: Campaign) -> dict | None:
     if not participants:
         return None
     next_index = int(state.get("turn_index", 0)) + 1
+    advance_character_effects(db, campaign, "turn_end")
     if next_index >= len(participants):
         next_index = 0
         state["round"] = int(state.get("round", 1)) + 1
+        advance_character_effects(db, campaign, "round_end")
     state["turn_index"] = next_index
+    if participants:
+        participants[next_index]["reaction_available"] = True
     _save(db, campaign, "turn_based", state)
+    advance_character_effects(db, campaign, "turn_start")
     return participants[next_index]
 
 

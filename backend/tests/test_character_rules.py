@@ -5,6 +5,7 @@ from app.tools.character_rules import (
     proficiency_bonus,
 )
 from app.tools.item_schema import normalize_inventory
+from app.tools.effect_engine import add_effect, advance_effect_durations, resolve_effective_character, roll_effects_for
 
 
 def test_core_excel_formulas_are_available_as_code():
@@ -58,3 +59,54 @@ def test_inventory_normalizes_standard_and_custom_items():
     legacy = normalize_inventory([{"item_id": "longsword", "name": "Longsword"}])[0]
     assert legacy["item_type"] == "weapon"
     assert legacy["weapon"]["damage_dice"] == "1d8"
+
+
+def test_effect_engine_combines_persistent_combat_and_equipped_effects():
+    data = {
+        "abilities": {"str": 16, "dex": 14, "con": 12, "int": 10, "wis": 10, "cha": 10},
+        "combat": {"armor_class": 12, "initiative": 2, "speed": 30, "proficiency_bonus": 2},
+        "skills": {"athletics": {"proficient": True, "bonus": 5}},
+        "saving_throws": {"str": 5, "dex": 2, "con": 1, "int": 0, "wis": 0, "cha": 0},
+        "inventory": normalize_inventory([{
+            "name": "Guardian Ring", "equipped": True, "attuned": True,
+            "effects": [{"name": "Ring Guard", "modifiers": [
+                {"target": "combat.armor_class", "operation": "add", "value": 1},
+            ]}],
+        }]),
+        "active_effects": [{
+            "name": "Battle Focus", "scope": "combat_only",
+            "duration": {"type": "rounds", "remaining": 2, "tick_on": "round_end"},
+            "modifiers": [
+                {"target": "abilities.str", "operation": "add", "value": 2},
+                {"target": "combat.armor_class", "operation": "add", "value": 2},
+            ],
+        }],
+    }
+    outside = resolve_effective_character(data, combat=False)["effective"]
+    inside = resolve_effective_character(data, combat=True)["effective"]
+    assert outside["combat"]["armor_class"] == 13
+    assert inside["combat"]["armor_class"] == 15
+    assert inside["ability_modifiers"]["str"] == 4
+    assert inside["skills"]["athletics"]["bonus"] == 6
+    advanced, expired = advance_effect_durations(data, "round_end")
+    assert advanced["active_effects"][0]["duration"]["remaining"] == 1
+    advanced, expired = advance_effect_durations(advanced, "round_end")
+    assert expired[0]["name"] == "Battle Focus"
+
+
+def test_effect_engine_replaces_concentration_and_exposes_roll_effects():
+    data, first, removed = add_effect({}, {
+        "name": "First concentration",
+        "concentration": {"required": True, "owner_character_id": "caster"},
+        "modifiers": [{"target": "roll.advantage", "operation": "advantage", "value": True,
+                       "conditions": {"roll_types": ["ability_check"]}}],
+    })
+    data, second, removed = add_effect(data, {
+        "name": "Bless",
+        "concentration": {"required": True, "owner_character_id": "caster"},
+        "modifiers": [{"target": "roll.bonus_dice", "operation": "add_dice", "value": "1d4",
+                       "conditions": {"roll_types": ["saving_throw"]}}],
+    })
+    assert removed == [first["effect_id"]]
+    context = roll_effects_for(resolve_effective_character(data), "saving_throw")
+    assert context["bonus_dice"] == ["1d4"]

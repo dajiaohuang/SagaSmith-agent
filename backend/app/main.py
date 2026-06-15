@@ -32,6 +32,7 @@ from app.tools.character_rules import (
 )
 from app.tools.spell_catalog import load_spell_catalog, search_spells
 from app.tools.item_schema import item_schema_catalog, normalize_character_inventory
+from app.tools.effect_engine import ActiveEffect, resolve_effective_character
 from app.campaign_memory import backfill_campaign_memory, search_campaign_memory
 from app.campaign_editor import (
     TEMPLATES, apply_template, conflict_suggestions, create_draft, export_campaign_package,
@@ -194,13 +195,24 @@ async def napcat_callback(
     answer = result["narration"]
     reply: str | list[dict] = answer
     if payload.get("message_type") == "group":
+        reaction_notifications = (
+            result.get("reaction_notifications") or result.get("data", {}).get("reaction_notifications") or []
+        )
         notification = result.get("turn_notification") or result.get("data", {}).get("turn_notification")
+        segments = [{"type": "text", "data": {"text": f"{answer}\n\n"}}]
+        for reaction in reaction_notifications:
+            if reaction.get("qq_user_id"):
+                segments.extend([
+                    {"type": "at", "data": {"qq": str(reaction["qq_user_id"])}},
+                    {"type": "text", "data": {"text": f" 你的角色“{reaction['name']}”可以反应，请回复是否使用。\n"}},
+                ])
         if notification and notification.get("qq_user_id"):
-            reply = [
-                {"type": "text", "data": {"text": f"{answer}\n\n"}},
+            segments.extend([
                 {"type": "at", "data": {"qq": str(notification["qq_user_id"])}},
                 {"type": "text", "data": {"text": f" 轮到你的角色“{notification['name']}”行动了。"}},
-            ]
+            ])
+        if len(segments) > 1:
+            reply = segments
     return {
         "reply": reply,
         "auto_escape": False,
@@ -560,6 +572,15 @@ def character_item_schema():
     return item_schema_catalog()
 
 
+@app.get("/characters/effects/schema")
+def character_effect_schema():
+    return {
+        "storage": "character.data.active_effects",
+        "computed": "character.data.effective",
+        "effect_json_schema": ActiveEffect.model_json_schema(),
+    }
+
+
 @app.get("/spells")
 def list_spells(
     query: str | None = None,
@@ -633,7 +654,10 @@ def normalize_campaign_character_inventories(campaign_id: str, db: Session = Dep
             update_character(
                 db,
                 character,
-                {"inventory": normalized["inventory"], "currency": normalized["currency"]},
+                {
+                    "inventory": normalized["inventory"], "currency": normalized["currency"],
+                    "active_effects": normalized["active_effects"],
+                },
                 "normalized inventory to structured item schema",
                 "inventory_schema_migration",
             )
@@ -647,6 +671,16 @@ def get_character(character_id: str, db: Session = Depends(get_db)):
     if not character:
         raise HTTPException(404, "Character not found")
     return serialize(character)
+
+
+@app.get("/characters/{character_id}/effective")
+def get_effective_character(character_id: str, db: Session = Depends(get_db)):
+    character = db.get(Character, character_id)
+    if not character:
+        raise HTTPException(404, "Character not found")
+    campaign = db.get(Campaign, character.campaign_id)
+    combat = bool((((campaign.config if campaign else {}) or {}).get("turn_state") or {}).get("combat"))
+    return resolve_effective_character(character.data, combat)
 
 
 @app.get("/characters/{character_id}/sheet")

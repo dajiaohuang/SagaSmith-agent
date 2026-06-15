@@ -52,6 +52,8 @@ LangGraph orchestrates the DM reasoning phase, DeepSeek generates narrative resp
 - Creates structured DND 5E character sheets from API requests.
 - Implements point buy, ability modifiers, proficiency bonus, skills, saving throws, HP, AC, and spellcasting calculations extracted from an Excel character-sheet template.
 - Stores every carried or equipped object in a unified structured inventory, including weapons, armor, consumables, containers, charges, effects, currency, and arbitrary homebrew items.
+- Resolves base character data plus persistent, equipped, scene, and combat-only effects into a single effective mechanical snapshot.
+- Supports effect duration ticks, stacking groups, concentration replacement/checks, advantage/disadvantage, bonus dice, and on-roll consumption.
 - Supports character versions, state-change history, spells, features, and background information.
 - Exports character data back into an Excel character sheet.
 - Maintains QQ user-to-character bindings for each campaign.
@@ -69,6 +71,7 @@ LangGraph orchestrates the DM reasoning phase, DeepSeek generates narrative resp
 - When mentioned to update memory, it reads the current or replied-to message by default and asks whether it should also ingest earlier group-chat history.
 - When mentioned to start combat, it asks for participants and initiative advantage/disadvantage, rolls initiative, and hosts turns using the DM-mode combat flow.
 - Dice assistant mode only disables proactive plot advancement, environment narration, and NPC roleplay. All tool capabilities remain available through natural-language questions, including character sheets, rules, skills, spells, items, memory, checks, damage, healing, and combat.
+- DM mode and dice assistant mode share the same deterministic combat pipeline, participant cards, effects, reactions, rolls, and turn handling. DM mode additionally receives private campaign context and may narrate scenes, portray NPCs, and express established plot developments.
 - Dice assistant output is restricted to facts, rules, data, calculations, state changes, and necessary clarification questions. It gives no action advice and produces no roleplay, atmosphere, environment narration, or NPC dialogue.
 - Entering dice assistant mode temporarily associates every NPC and monster in the current campaign with the DM QQ account. If the DM cannot be identified uniquely, the assistant asks first. Exiting removes these temporary associations without changing player bindings.
 - Switching from DM mode to dice assistant mode keeps the same campaign. Its progress, scene, background, public settings, actors, and memory remain available as tool-question context.
@@ -288,7 +291,7 @@ manage_qq_bindings.bat
 NapCat OneBot HTTP Post URL:
 
 ```text
-http://127.0.0.1:8010/napcat/callback
+http://127.0.0.1:8011/napcat/callback
 ```
 
 Manage QQ user-to-character bindings:
@@ -300,7 +303,7 @@ manage_qq_bindings.bat bind 123456789 char_001 --name PlayerName
 manage_qq_bindings.bat unbind 123456789
 ```
 
-NapCat and its runtime are not included in this repository. Install them separately and set `NAPCAT_SOURCE_DIR`, or place the runtime under `tools/napcat/runtime`.
+NapCat is shared outside the repository at `D:\mcp\napcat`. The launchers use `D:\mcp\napcat\pkg` first, then fall back to `NAPCAT_SOURCE_DIR` or the legacy `tools/napcat` path. Set `NAPCAT_CALLBACK_PORT` to override the default callback port `8011`.
 
 ## Importing Rulebooks and Source Material
 
@@ -341,6 +344,8 @@ uv run scripts/install_parse_backends.py --backend markitdown
 | Actor scene presence | `PATCH /characters/{character_id}/presence` |
 | Item schema catalog | `GET /characters/items/schema` |
 | Normalize existing inventories | `POST /campaigns/{campaign_id}/characters/inventory/normalize` |
+| Inspect effect JSON schema | `GET /characters/effects/schema` |
+| Inspect a character's effective mechanical snapshot | `GET /characters/{character_id}/effective` |
 | Export a character sheet | `GET /characters/{character_id}/sheet` |
 | Campaign events | `GET /campaigns/{campaign_id}/events` |
 | Campaign memories | `GET /campaigns/{campaign_id}/memories` |

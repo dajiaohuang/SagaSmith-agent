@@ -1,6 +1,7 @@
 from typing import Any
 from pydantic import BaseModel, Field
 from app.tools.item_schema import CharacterItem, CurrencyWallet
+from app.tools.effect_engine import ActiveEffect
 
 
 class CampaignCreate(BaseModel):
@@ -71,6 +72,7 @@ class CharacterBuildRequest(BaseModel):
     roleplay: dict[str, Any] = Field(default_factory=dict)
     story_role: dict[str, Any] = Field(default_factory=dict)
     encounter: dict[str, Any] = Field(default_factory=dict)
+    active_effects: list[ActiveEffect | dict[str, Any]] = Field(default_factory=list)
 
 
 class NapCatBindingUpsert(BaseModel):
