@@ -16,7 +16,8 @@ from app.campaign_turns import (
 from app.campaign_editor import discard_drafts, publish_drafts, undo_latest_draft, validate_settings
 from app.db.models import CampaignSettingDraft
 from app.config import settings
-from app.qq_bindings import set_dice_dm_actor_bindings
+from app.campaign_editor import list_settings, setting_to_npc_character
+from app.qq_bindings import active_napcat_campaign, set_active_napcat_campaign, set_dice_dm_actor_bindings
 from app.combat_preferences import combat_preference, preference_style, set_combat_preference
 from app.task_sessions import active_task, create_task, owner_mentions, task_scope
 
@@ -27,6 +28,7 @@ DM_ONLY_COMMANDS = {
     "undo_setting_draft", "enter_dice_assistant", "exit_dice_assistant",
     "enable_combat_roleplay", "disable_combat_roleplay",
     "enable_combat_advice", "disable_combat_advice",
+    "create_campaign_from_prompt", "delete_active_campaign", "create_npc_cards_from_settings",
 }
 
 
@@ -49,6 +51,11 @@ def close_campaign_edit_tasks(db: Session, campaign: Campaign, status: str) -> N
         TaskSession.status.in_(("active", "waiting_user", "ready_to_commit")),
     )).all():
         item.status = status
+
+
+def delete_campaign_graph(db: Session, campaign: Campaign) -> None:
+    db.delete(campaign)
+    db.commit()
 
 
 def play_style(campaign: Campaign) -> str:
@@ -161,6 +168,58 @@ def execute_command(
                  "combat_roleplay_enabled": combat_preference(campaign, "roleplay"),
                  "combat_advice_enabled": combat_preference(campaign, "advice"),
                  "combat_preference_style": preference_style(campaign)})
+
+    if command.name == "create_campaign_from_prompt":
+        config = copy.deepcopy(campaign.config or {})
+        name = str(config.get("pending_generated_campaign_name") or "").strip() or f"{campaign.name}·新章"
+        description = str(config.get("pending_generated_campaign_description") or campaign.description or "").strip()
+        new_campaign = Campaign(id=uid("camp"), name=name, system_version=campaign.system_version,
+                                description=description, config={"scene": "未记录"})
+        db.add(new_campaign)
+        db.commit()
+        set_active_napcat_campaign(db, new_campaign)
+        return command_result(
+            "create_campaign_from_prompt",
+            f"已创建并切换到新战役“{new_campaign.name}”（{new_campaign.id}）。",
+            data={"campaign": serialize(new_campaign)},
+        )
+
+    if command.name == "delete_active_campaign":
+        target = active_napcat_campaign(db) or campaign
+        deleted_name, deleted_id = target.name, target.id
+        delete_campaign_graph(db, target)
+        fallback = db.scalar(select(Campaign).order_by(Campaign.updated_at.desc()))
+        if fallback:
+            set_active_napcat_campaign(db, fallback)
+            narration = (
+                f"已删除当前战役“{deleted_name}”（{deleted_id}）及其所有关联数据。"
+                f"当前已切换到战役“{fallback.name}”（{fallback.id}）。"
+            )
+        else:
+            narration = (
+                f"已删除当前战役“{deleted_name}”（{deleted_id}）及其所有关联数据。"
+                "当前无活跃战役和角色数据。"
+            )
+        return command_result("delete_active_campaign", narration)
+
+    if command.name == "create_npc_cards_from_settings":
+        created = []
+        for item in list_settings(db, campaign.id):
+            if item.category not in {"npc", "monster"}:
+                continue
+            character = setting_to_npc_character(db, item)
+            created.append(character)
+        if not created:
+            return command_result(
+                "create_npc_cards_from_settings",
+                "当前战役里没有可用于建卡的已发布 NPC/怪物设定。",
+                ok=False,
+            )
+        return command_result(
+            "create_npc_cards_from_settings",
+            f"已按设定创建/同步 {len(created)} 张 NPC/怪物角色卡。",
+            data={"characters": [serialize(item) for item in created]},
+        )
 
     behavior_commands = {
         "enable_combat_roleplay": ("roleplay", True, "战斗扮演文字已开启。"),

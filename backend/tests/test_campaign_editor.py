@@ -1,3 +1,5 @@
+import time
+
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -11,6 +13,7 @@ def test_campaign_editor_all_phases(monkeypatch):
         return "The published setting shapes the scene."
 
     monkeypatch.setattr("app.services.chat_completion", fake_chat)
+    monkeypatch.setattr("app.subagent_runner.chat_completion", lambda *args, **kwargs: "后台审核完成。")
     with TestClient(app) as client:
         campaign = client.post("/campaigns", json={"name": "Editor Test"}).json()
         campaign_id = campaign["id"]
@@ -29,6 +32,19 @@ def test_campaign_editor_all_phases(monkeypatch):
         assert tasks[0]["parent_task_id"]
         assert tasks[0]["proposal_data"]["agent_role"] == "campaign_setting_reviewer"
         assert proposal["data"]["drafts"][0]["id"] in tasks[0]["proposal_data"]["proposal"]["draft_ids"]
+        assert tasks[0]["status"] in {"queued", "running", "ready_to_review"}
+        for _ in range(30):
+            reviewed = client.get(f"/campaigns/{campaign_id}/tasks/{tasks[0]['id']}").json()
+            if reviewed["status"] == "ready_to_review":
+                break
+            time.sleep(0.05)
+        assert reviewed["status"] == "ready_to_review"
+        assert reviewed["proposal_data"]["result"]["kind"] == "campaign_setting_review"
+        digest = client.post(f"/chat/{campaign_id}", json={
+            "session_id": "edit", "message": "查看建议",
+        }).json()
+        assert digest["command"] == "task_reviews"
+        assert "后台子任务结果待审核" in digest["narration"]
 
         published = client.post(f"/chat/{campaign_id}", json={"session_id": "edit", "message": "/publishsettings"}).json()
         assert len(published["data"]["settings"]) == 1

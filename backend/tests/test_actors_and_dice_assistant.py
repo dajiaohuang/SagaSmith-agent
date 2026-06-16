@@ -380,6 +380,19 @@ def test_dice_assistant_explains_missing_character_binding():
         assert "没有找到任何与参战名单匹配的实体角色卡" in refused["narration"]
 
 
+def test_dice_assistant_blocks_campaign_admin_natural_language_from_rule_fallback():
+    with TestClient(app) as client:
+        campaign = client.post("/campaigns", json={
+            "name": "Dice Admin Guard",
+            "config": {"play_style": "dice_assistant"},
+        }).json()
+        result = client.post(f"/chat/{campaign['id']}", json={
+            "session_id": "dice", "message": "保存现在的设定",
+        }).json()
+        assert result["command"] == "publish_settings"
+        assert "骰娘模式不管理预设战役剧情或设定编辑" in result["narration"]
+
+
 def test_natural_effect_actions_apply_and_expire_in_combat():
     with TestClient(app) as client:
         campaign = client.post("/campaigns", json={"name": "Effects Campaign"}).json()

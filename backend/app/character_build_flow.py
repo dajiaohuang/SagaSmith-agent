@@ -10,7 +10,11 @@ from app.campaign_control import command_result
 from app.db.models import Campaign, Character, TaskSession
 from app.qq_bindings import bind_qq
 from app.services import serialize, uid
-from app.task_sessions import active_task, create_task, owner_mentions, session_payload, task_scope
+from app.subagent_runner import enqueue_subagent_task
+from app.task_sessions import (
+    active_task, bump_draft_version, create_subagent_proposal, create_task,
+    owner_mentions, session_payload, task_scope,
+)
 from app.tools.character_builder import build_character_data
 from app.tools.character_rules import ABILITY_KEYS
 
@@ -150,6 +154,7 @@ def start_character_build(
         "class_name": "",
         "level": 1,
         "abilities": {key: 10 for key in ABILITY_KEYS},
+        "_meta": {"version": 1},
     }
     patch = _parse_fields(initial_text)
     draft = _merge_draft(draft, patch)
@@ -206,6 +211,7 @@ def update_character_build(
             },
         )
     item.draft_data = _merge_draft(item.draft_data or {}, patch)
+    bump_draft_version(item)
     item.missing_fields = _missing(item.draft_data)
     item.status = "ready_to_commit" if not item.missing_fields else "waiting_user"
     item.mentions = owner_mentions(user_id, "你的车卡草稿已更新。")
@@ -300,7 +306,17 @@ def submit_character_build(
     item.created_object_type = "character"
     item.created_object_id = character.id
     item.mentions = owner_mentions(user_id, f"车卡已创建：{character.character_name}。")
+    subtask = create_subagent_proposal(
+        db,
+        campaign,
+        item,
+        agent_role="character_sheet_reviewer",
+        goal="Review the submitted character sheet for mechanical completeness and structured data quality.",
+        proposal={"character_id": character.id},
+        next_prompt="角色卡后台审核完成后可查看结果。",
+    )
     db.commit()
+    enqueue_subagent_task(subtask.id)
     if platform == "napcat" and user_id.isdigit():
         bind_qq(db, campaign.id, user_id, character)
     return command_result(

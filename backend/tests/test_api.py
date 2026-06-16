@@ -1,5 +1,11 @@
+import time
+
 from fastapi.testclient import TestClient
 from app.main import app
+from app.db.database import SessionLocal
+from app.db.models import Campaign, TaskSession
+from app.subagent_runner import run_subagent_task
+from app.task_sessions import bump_draft_version, create_subagent_proposal
 
 
 def test_mvp_closed_loop():
@@ -170,6 +176,24 @@ def test_qq_character_binding_crud():
         client.put("/napcat/active-campaign/campaign_001")
 
 
+def test_natural_campaign_admin_commands_switch_and_delete_active_campaign():
+    with TestClient(app) as client:
+        client.post("/demo/bootstrap")
+        created = client.post("/chat/campaign_001", json={
+            "session_id": "admin", "message": "创建新战役",
+        }).json()
+        assert created["command"] == "create_campaign_from_prompt"
+        new_campaign = created["data"]["campaign"]
+        assert client.get("/napcat/active-campaign").json()["id"] == new_campaign["id"]
+
+        deleted = client.post(f"/chat/{new_campaign['id']}", json={
+            "session_id": "admin", "message": "删除现在的战役",
+        }).json()
+        assert deleted["command"] == "delete_active_campaign"
+        assert "已删除当前战役" in deleted["narration"]
+        assert client.get("/napcat/active-campaign").json()["id"] == "campaign_001"
+
+
 def test_character_builder_and_template_export():
     with TestClient(app) as client:
         client.post("/demo/bootstrap")
@@ -204,7 +228,8 @@ def test_character_builder_and_template_export():
         )
 
 
-def test_parallel_character_build_sessions_do_not_cross_talk():
+def test_parallel_character_build_sessions_do_not_cross_talk(monkeypatch):
+    monkeypatch.setattr("app.subagent_runner.chat_completion", lambda *args, **kwargs: "角色卡审核完成。")
     with TestClient(app) as client:
         campaign = client.post("/campaigns", json={"name": "Parallel Build"}).json()
         first = client.post(f"/chat/{campaign['id']}", json={
@@ -250,6 +275,21 @@ def test_parallel_character_build_sessions_do_not_cross_talk():
         tasks = client.get(f"/campaigns/{campaign['id']}/tasks", params={"status": "committed"}).json()
         committed_builds = [item for item in tasks if item["task_type"] == "character_build"]
         assert {item["owner_user_id"] for item in committed_builds} >= {"alice", "bob"}
+        review_tasks = client.get(f"/campaigns/{campaign['id']}/tasks", params={"task_type": "subagent_proposal"}).json()
+        character_reviews = [
+            item for item in review_tasks
+            if item["proposal_data"]["agent_role"] == "character_sheet_reviewer"
+        ]
+        assert len(character_reviews) >= 2
+        for _ in range(30):
+            latest = client.get(
+                f"/campaigns/{campaign['id']}/tasks/{character_reviews[0]['id']}"
+            ).json()
+            if latest["status"] == "ready_to_review":
+                break
+            time.sleep(0.05)
+        assert latest["status"] == "ready_to_review"
+        assert latest["proposal_data"]["result"]["kind"] == "character_sheet_review"
 
 
 def test_task_session_api_supports_subtask_lifecycle():
@@ -280,6 +320,39 @@ def test_task_session_api_supports_subtask_lifecycle():
         assert committed["status"] == "committed"
         assert committed["created_object_id"] == "setting_123"
         assert not any(item["id"] == child["id"] for item in client.get(f"/campaigns/{campaign['id']}/tasks").json())
+
+
+def test_subagent_result_marks_stale_when_parent_changes():
+    with TestClient(app) as client:
+        campaign = client.post("/campaigns", json={"name": "Stale Subagent"}).json()
+    with SessionLocal() as db:
+        camp = db.get(Campaign, campaign["id"])
+        parent = TaskSession(
+            id="task_parent_stale",
+            campaign_id=camp.id,
+            task_type="character_build",
+            owner_user_id="alice",
+            session_id="stale",
+            draft_data={"_meta": {"version": 1}},
+        )
+        db.add(parent)
+        child = create_subagent_proposal(
+            db,
+            camp,
+            parent,
+            agent_role="generic_reviewer",
+            goal="review stale behavior",
+        )
+        bump_draft_version(parent)
+        db.commit()
+        child_id = child.id
+    run_subagent_task(child_id)
+    with SessionLocal() as db:
+        child = db.get(TaskSession, child_id)
+        assert child.status == "ready_to_review"
+        assert child.proposal_data["source_parent_version"] == 1
+        assert child.proposal_data["current_parent_version"] == 2
+        assert child.proposal_data["stale"] is True
 
 
 def test_character_item_schema_and_custom_inventory():

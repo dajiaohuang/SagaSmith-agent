@@ -9,7 +9,7 @@ from app.db.models import Campaign, TaskSession
 from app.services import serialize, uid
 
 
-ACTIVE_STATUSES = ("active", "waiting_user", "ready_to_commit")
+ACTIVE_STATUSES = ("active", "waiting_user", "queued", "running", "ready_to_review", "ready_to_commit")
 
 
 def task_scope(
@@ -55,6 +55,16 @@ def session_payload(task: TaskSession) -> dict[str, Any]:
     data["user_id"] = data.get("owner_user_id")
     data["created_character_id"] = data.get("created_object_id")
     return data
+
+
+def bump_draft_version(task: TaskSession) -> int:
+    draft = dict(task.draft_data or {})
+    meta = dict(draft.get("_meta") or {})
+    version = int(meta.get("version") or 0) + 1
+    meta["version"] = version
+    draft["_meta"] = meta
+    task.draft_data = draft
+    return version
 
 
 def create_task(
@@ -110,11 +120,12 @@ def create_subagent_proposal(
         chat_id=parent.chat_id,
         owner_user_id=parent.owner_user_id,
         session_id=parent.session_id,
-        status="ready_to_commit",
+        status="queued",
         priority=parent.priority,
         proposal_data={
             "agent_role": agent_role,
             "goal": goal,
+            "source_parent_version": ((parent.draft_data or {}).get("_meta") or {}).get("version", 0),
             "proposal": proposal or {},
         },
         next_prompt=next_prompt,
@@ -123,3 +134,39 @@ def create_subagent_proposal(
     )
     db.add(item)
     return item
+
+
+def ready_reviews(
+    db: Session,
+    campaign: Campaign,
+    platform: str,
+    owner_user_id: str,
+    session_id: str | None,
+) -> list[TaskSession]:
+    query = select(TaskSession).where(
+        TaskSession.campaign_id == campaign.id,
+        TaskSession.task_type == "subagent_proposal",
+        TaskSession.platform == platform,
+        TaskSession.owner_user_id == owner_user_id,
+        TaskSession.status == "ready_to_review",
+    )
+    if session_id:
+        query = query.where(TaskSession.session_id == session_id)
+    return db.scalars(query.order_by(TaskSession.updated_at.desc())).all()
+
+
+def format_ready_reviews(tasks: list[TaskSession]) -> str:
+    lines = ["有后台子任务结果待审核："]
+    for index, task in enumerate(tasks, start=1):
+        data = task.proposal_data or {}
+        result = data.get("result") or {}
+        stale = "（基于旧版草稿，仅供参考）" if data.get("stale") else ""
+        lines.append(
+            f"{index}. {data.get('agent_role') or task.task_type}{stale}："
+            f"{result.get('summary') or task.next_prompt or '已完成'}"
+        )
+        issues = result.get("blocking_issues") or []
+        if issues:
+            lines.append("   阻塞问题：" + "；".join(str(item) for item in issues[:3]))
+    lines.append("可以回复“采用建议”“继续修改”或“发布/提交”。")
+    return "\n".join(lines)

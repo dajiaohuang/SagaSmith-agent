@@ -66,6 +66,8 @@ NATURAL_COMMANDS = {
     "战役状态": "status",
     "查看战役状态": "status",
     "保存战役": "save",
+    "保存这个战役": "save",
+    "保存当前战役": "save",
     "保存当前进度": "save",
     "保存一下": "save",
     "暂停战役": "pause",
@@ -88,6 +90,7 @@ NATURAL_COMMANDS = {
     "查看当前战役": "status",
     "进入战役编辑模式": "enter_campaign_edit",
     "编辑战役": "enter_campaign_edit",
+    "保存现在的设定": "publish_settings",
     "退出战役编辑模式": "exit_campaign_edit",
     "退出编辑": "exit_campaign_edit",
     "发布设定": "publish_settings",
@@ -113,6 +116,14 @@ NATURAL_COMMANDS = {
     "查看车卡草稿": "show_character_build",
     "提交车卡": "submit_character_build",
     "确认车卡": "submit_character_build",
+    "创建新战役": "create_campaign_from_prompt",
+    "新建战役": "create_campaign_from_prompt",
+    "删除当前战役": "delete_active_campaign",
+    "删除现在的战役": "delete_active_campaign",
+    "删除这个战役": "delete_active_campaign",
+    "给这些npc按照设定创建角色卡": "create_npc_cards_from_settings",
+    "按设定创建npc角色卡": "create_npc_cards_from_settings",
+    "创建这些npc角色卡": "create_npc_cards_from_settings",
 }
 
 

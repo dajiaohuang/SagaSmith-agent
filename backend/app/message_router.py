@@ -21,7 +21,10 @@ from app.character_build_flow import (
     cancel_character_build, has_active_character_build, show_character_build, start_character_build,
     submit_character_build, update_character_build,
 )
-from app.task_sessions import active_task, create_subagent_proposal, task_scope
+from app.task_sessions import (
+    active_task, create_subagent_proposal, format_ready_reviews, ready_reviews, task_scope,
+)
+from app.subagent_runner import enqueue_subagent_task
 
 
 def process_message(
@@ -36,6 +39,11 @@ def process_message(
 ) -> dict:
     compact = " ".join(message.strip().split())
     lowered = compact.casefold()
+    campaign_admin_terms = (
+        "创建新战役", "新建战役", "删除当前战役", "删除现在的战役", "删除这个战役",
+        "保存这个战役", "保存当前战役", "保存现在的设定", "给这些npc按照设定创建角色卡",
+        "按设定创建npc角色卡", "创建这些npc角色卡",
+    )
     if lowered.startswith(("/记忆", "/memory")):
         query = compact.split(maxsplit=1)[1] if len(compact.split(maxsplit=1)) > 1 else compact
         package = build_memory_package(db, campaign.id, query, session_id)
@@ -48,6 +56,19 @@ def process_message(
     dice_mode = (campaign.config or {}).get("play_style") == "dice_assistant"
     command = route_command(message)
     bound_character = db.get(Character, character_id) if character_id else None
+    scope_platform, _scope_chat, scope_owner, scope_session = task_scope(
+        message_context or {"platform": "web"}, actor_id, session_id,
+    )
+    wants_task_review = any(term in lowered for term in (
+        "查看任务", "查看建议", "后台结果", "审核结果", "子任务", "subagent", "review",
+    ))
+    if wants_task_review:
+        reviews = ready_reviews(db, campaign, scope_platform, scope_owner, scope_session)
+        return command_result(
+            "task_reviews",
+            format_ready_reviews(reviews) if reviews else "当前没有后台子任务结果待审核。",
+            data={"tasks": [serialize(item) for item in reviews]},
+        )
     if not command and compact.startswith(("车卡", "开始车卡", "我要车卡", "创建角色")):
         return start_character_build(db, campaign, session_id, actor_id, message_context, compact)
     if command and command.name == "start_character_build":
@@ -77,6 +98,13 @@ def process_message(
         if dice_mode:
             clear_dice_pending_state(db, campaign)
         return execute_command(db, command, campaign, session_id, actor_id, is_dm, message_context)
+    if dice_mode and any(term in compact for term in campaign_admin_terms):
+        return command_result(
+            "campaign_admin_redirect",
+            "这条消息更像战役管理/设定管理请求。我不会把它当作规则检索或角色卡查询。"
+            "请直接使用相应命令，或等当前战役切换完成后重试。",
+            ok=False,
+        )
     if dice_mode:
         contextual = dice_context_action(
             db, campaign, message,
@@ -89,14 +117,21 @@ def process_message(
     effect_action = resolve_effect_action(db, campaign, bound_character, message, actor_id, session_id)
     if effect_action:
         return effect_action
-    edit_platform, _edit_chat, edit_owner, edit_session = task_scope({"platform": "web"}, actor_id, session_id)
+    passive_reviews = ready_reviews(db, campaign, scope_platform, scope_owner, scope_session)
+    if passive_reviews and not command:
+        return command_result(
+            "task_reviews",
+            format_ready_reviews(passive_reviews),
+            data={"tasks": [serialize(item) for item in passive_reviews]},
+        )
+    edit_platform, _edit_chat, edit_owner, edit_session = scope_platform, _scope_chat, scope_owner, scope_session
     if active_task(db, campaign, "campaign_edit", edit_platform, edit_owner, edit_session):
         if not is_dm:
             return command_result("campaign_edit", "战役编辑模式仅允许 DM 操作。", ok=False)
         parent_task = active_task(db, campaign, "campaign_edit", edit_platform, edit_owner, edit_session)
         result = editor_chat(db, campaign, session_id, message, actor_id)
         if parent_task and result.get("drafts"):
-            create_subagent_proposal(
+            subtask = create_subagent_proposal(
                 db,
                 campaign,
                 parent_task,
@@ -106,6 +141,7 @@ def process_message(
                 next_prompt="已生成设定草稿，可审核后发布。",
             )
             db.commit()
+            enqueue_subagent_task(subtask.id)
         return {
             "ok": True, "kind": "campaign_editor", "command": "campaign_editor",
             "narration": result.pop("narration"), "data": result, "rolls": [], "state_changes": [], "events": [],
