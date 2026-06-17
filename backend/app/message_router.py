@@ -11,6 +11,7 @@ from app.services import append_event, serialize
 from app.campaign_memory import build_memory_package
 from app.campaign_turns import (
     advance_turn, current_turn, format_turn_state, runtime_mode, turn_access, turn_notification,
+    init_turn_actions, get_actions_remaining, format_actions_remaining,
 )
 from app.dice_assistant import clear_dice_pending_state, dice_context_action, resolve_dice_assistant
 from app.actor_manager import list_actors, is_present
@@ -269,9 +270,21 @@ def _combat_system_prompt(campaign: Campaign, character: Character | None, narra
         if hot:
             lines.append(f"\n[当前角色热数据]\n{_json.dumps(hot, ensure_ascii=False)}")
 
+    # ── Action quota ──
+    if db:
+        actions = get_actions_remaining(campaign)
+        lines.append(f"\n当前回合剩余动作配额: {format_actions_remaining(campaign)}")
+    else:
+        actions = {"main_action": 1, "bonus_action": 1, "reaction": 1, "movement": 30, "extra_actions": 0}
+
     lines.append("""
-战斗规则：
-- 每回合有1个动作、1个附赠动作、1个反应、移动
+战斗规则:
+- 每个行动调用对应工具，系统自动扣除动作配额
+- 主动作: 攻击/施法/疾走/撤退/闪避 (main_action)
+- 附赠动作: 双武器副手/灵巧施法 (bonus_action)
+- 动作如潮: 使用 use_feature("action_surge") 获得额外动作
+- 配额用完后提醒用户结束回合，或建议可用的附赠/移动
+- 用户说「结束回合」时调用 end_turn 工具
 - 用户会用自然语言描述行动，你需要调用对应工具
 - 信息不足时调用 ask_clarification 追问，不要猜测
 - 追问示例：用哪个法术？几环？目标是谁？用动作还是附赠动作？

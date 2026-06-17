@@ -1032,6 +1032,9 @@ TOOL_HANDLERS: dict[str, Handler] = {
     "combat_disengage": COMBAT_HANDLERS["combat_disengage"],
     "combat_dodge": COMBAT_HANDLERS["combat_dodge"],
     "ask_clarification": COMBAT_HANDLERS["ask_clarification"],
+    "use_feature": COMBAT_HANDLERS["use_feature"],
+    "end_turn": COMBAT_HANDLERS["end_turn"],
+    "turn_status": COMBAT_HANDLERS["turn_status"],
 }
 
 
