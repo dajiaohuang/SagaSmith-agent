@@ -450,12 +450,15 @@ def resolve_chat(db: Session, campaign_id: str | None, session_id: str | None, c
 
     metadata = {"raw_player_input": message, "dm_response": narration, "rolls": rolls, "state_changes": changes,
                 "context_refs": context_refs}
-    event = append_event(
-        db, campaign_id, session_id, "player_action", message, actors, metadata,
-        memory_plan={"extract_after_event": True, "intent_type": "dm_narrative", "skip": False},
-    )
+    events_list = []
+    if campaign_id:
+        event = append_event(
+            db, campaign_id, session_id, "player_action", message, actors, metadata,
+            memory_plan={"extract_after_event": True, "intent_type": "dm_narrative", "skip": False},
+        )
+        events_list = [serialize(event)]
     return {"campaign_id": campaign_id, "message": message, "narration": narration,
-            "data": result_data, "rolls": rolls, "state_changes": changes, "events": [serialize(event)]}
+            "data": result_data, "rolls": rolls, "state_changes": changes, "events": events_list}
 
 
 def create_summary(db: Session, campaign_id: str, session_id: str | None) -> CampaignSummary:
