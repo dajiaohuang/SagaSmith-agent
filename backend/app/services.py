@@ -370,7 +370,12 @@ def build_dm_context(
 
 
 def resolve_chat(db: Session, campaign_id: str, session_id: str | None, character_id: str | None,
-                 message: str) -> dict:
+                 message: str, *, mode: str = "dm") -> dict:
+    """Unified DM narrative / dice assistant LLM path.
+
+    mode="dm"   → full DM: narration, NPC roleplay, combat description
+    mode="dice" → dice assistant: pure mechanics, no roleplay, no advice
+    """
     campaign = db.get(Campaign, campaign_id)
     character = db.get(Character, character_id) if character_id else None
     context_prompt, context_refs = build_dm_context(db, campaign_id, session_id, character, message)
@@ -379,20 +384,41 @@ def resolve_chat(db: Session, campaign_id: str, session_id: str | None, characte
     result_data = {}
     actors = [character_id] if character_id else []
 
-    # All mechanical actions (potion, rest, social) now handled by LLM tools
-    combat_instructions = _combat_output_instructions(campaign) if campaign else ""
-    _sys = (
-        "You are a concise DND Dungeon Master. Continue from established campaign memory. "
-        "Use the current character sheet and relevant rules. Do not invent mechanical state changes. "
-        "Never stop to ask a player to roll dice; state the required roll clearly so the system can "
-        f"roll it immediately and continue. {combat_instructions}"
-        "When the user asks to drink a potion, take a rest, make a skill check, create a character, "
-        "save a setting, check bindings, or export a sheet, use a function call rather than narrating it. "
-        "When you need to make an ability check or saving throw, call ability_check or saving_throw tools "
-        "with the character's real modifiers — do NOT invent dice results. "
-        "When an action can use multiple skills (e.g. climbing: Athletics or Acrobatics), "
-        "call ask_clarification to let the player choose which skill to use."
-    )
+    # ── Unified system prompt (DM / Dice) ──
+    _combat = bool(((campaign.config or {}).get("turn_state") or {}).get("combat"))
+    temperature = 0.7 if mode == "dm" else 0.2
+
+    if mode == "dice":
+        _sys = (
+            "你是桌面跑团的工具型骰娘。自然、直接地回答规则、角色卡、技能、法术、物品、"
+            "检定、数值计算和明确的状态记录问题。"
+            "只能依据提供的战役上下文、机械数据和记忆回答。"
+            "只输出事实、数据、规则引用、计算结果、状态变更或必要的澄清问题。"
+            "始终禁止 NPC 台词和剧情续写。禁止推进或编造剧情，禁止替真实 DM 决定结果。"
+            "禁止给玩家战术建议。"
+            "信息不足时只列出缺少的字段。"
+            "当行动可选择多种技能时（如攀爬可用运动或体操），调用 ask_clarification 让玩家选择。"
+            "需要检定时调用 ability_check 或 saving_throw 工具，禁止编造投骰结果。"
+        )
+    else:
+        combat_instr = ""
+        if campaign:
+            combat_instr = (
+                "战斗中允许描写行动结果和 NPC 反应，但禁止虚构机械数值。"
+                if _combat else ""
+            )
+        _sys = (
+            "You are a concise DND Dungeon Master. Continue from established campaign memory. "
+            "Use the current character sheet and relevant rules. Do not invent mechanical state changes. "
+            "Never stop to ask a player to roll dice; state the required roll clearly so the system can "
+            f"roll it immediately and continue. {combat_instr}"
+            "When the user asks to drink a potion, take a rest, make a skill check, create a character, "
+            "save a setting, check bindings, or export a sheet, use a function call rather than narrating it. "
+            "When you need to make an ability check or saving throw, call ability_check or saving_throw tools "
+            "with the character's real modifiers — do NOT invent dice results. "
+            "When an action can use multiple skills (e.g. climbing: Athletics or Acrobatics), "
+            "call ask_clarification to let the player choose which skill to use."
+        )
     if character:
         _hot = hot_character_for_llm(db, character.id)
         if _hot:
@@ -405,7 +431,8 @@ def resolve_chat(db: Session, campaign_id: str, session_id: str | None, characte
     ]
     _fallback_text = (
         "行动已记录，未产生可确认的机械状态变化。"
-        if combat_instructions
+        if _combat
+        else "骰娘：请提供更具体的问题或检定指令。" if mode == "dice"
         else "你的行动让局势继续向前推进。四周的目光落在你身上，等待你作出下一步选择。"
     )
 
@@ -414,7 +441,7 @@ def resolve_chat(db: Session, campaign_id: str, session_id: str | None, characte
     try:
         from app.tools.command_tools import TOOL_HANDLERS, tools_for_scope
         _tools = tools_for_scope(campaign, is_dm=False)
-        _resp = chat_completion(_msgs, temperature=0.7, tools=_tools)
+        _resp = chat_completion(_msgs, temperature=temperature, tools=_tools)
     except Exception:
         _resp = None
 
@@ -464,7 +491,11 @@ def resolve_chat(db: Session, campaign_id: str, session_id: str | None, characte
         elif _resp is not None and _resp.content:
             narration = _resp.content
         else:
-            narration = chat_completion(_msgs) or _fallback_text
+            narration = chat_completion(_msgs, temperature=temperature) or _fallback_text
+    # ── Dice mode: strip roleplay/advice output ──
+    if mode == "dice" and narration:
+        from app.dice_assistant import strict_tool_output
+        narration = strict_tool_output(narration, campaign, _combat, False) or narration
     requested_formula = _requested_roll(narration)
     automatic_roll_count = 0
     if requested_formula and campaign and bool(((campaign.config or {}).get("turn_state") or {}).get("combat")):
@@ -485,7 +516,7 @@ def resolve_chat(db: Session, campaign_id: str, session_id: str | None, characte
                 })
     while requested_formula and automatic_roll_count < 4:
         narration, automatic_roll = _finish_requested_roll(
-            context_prompt, message, narration, requested_formula, combat_instructions,
+            context_prompt, message, narration, requested_formula, "",
         )
         rolls.append(automatic_roll)
         automatic_roll_count += 1
