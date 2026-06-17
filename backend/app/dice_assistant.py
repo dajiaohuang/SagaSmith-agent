@@ -780,7 +780,9 @@ def resolve_dice_assistant(
     ))
     has_explicit_dice_formula = bool(re.search(r"(?<!\w)\d*d\d+(?:[+-]\d+)?(?!\w)", lowered))
     if is_question and not has_explicit_dice_formula:
-        return _non_turn_result(resolve_dice_tool_question(db, campaign, character, message, narrative_mode))
+        from app.services import resolve_chat
+        result = resolve_chat(db, campaign.id, None, character.id if character else None, message, mode="dice")
+        return _non_turn_result(_result(result.get("narration", ""), result.get("rolls", []), result.get("state_changes", [])))
 
     # Direct dice formula → fast-path atomic roll (keep)
     formula = re.search(r"(?<!\w)(\d*d\d+(?:[+-]\d+)?)(?!\w)", lowered)
@@ -825,4 +827,7 @@ def resolve_dice_assistant(
         bonus_text = f"，额外骰 {roll_context['bonus_dice']}" if bonus_rolls else ""
         return _result(f"骰娘：{label}检定（{mode}，修正 {modifier:+d}{bonus_text}）= {roll['total']}。", [roll])
 
-    return resolve_dice_tool_question(db, campaign, character, message, narrative_mode)
+    # Fallthrough to unified LLM path (dice mode)
+    from app.services import resolve_chat
+    result = resolve_chat(db, campaign.id, None, character.id if character else None, message, mode="dice")
+    return _result(result.get("narration", ""), result.get("rolls", []), result.get("state_changes", []))
