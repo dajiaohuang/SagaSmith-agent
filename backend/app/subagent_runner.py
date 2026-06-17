@@ -39,6 +39,10 @@ def run_subagent_task(task_id: str) -> None:
                 result = review_campaign_setting_drafts(db, campaign, proposal_data)
             elif role == "character_sheet_reviewer":
                 result = review_character_sheet(db, campaign, proposal_data)
+            elif role == "character_completer":
+                result = complete_character_sheet(db, campaign, proposal_data)
+            elif role == "bulk_character_from_setting":
+                result = bulk_character_from_settings(db, campaign, proposal_data)
             elif role == "campaign_compressor":
                 result = compress_campaign_events(db, campaign, proposal_data)
             else:
@@ -153,6 +157,91 @@ def compress_campaign_events(db, campaign: Campaign, proposal_data: dict[str, An
         "summary": summary,
         "compressed_events": len(events),
         "archived_memories": archived,
+    }
+
+
+def complete_character_sheet(db, campaign: Campaign, proposal_data: dict[str, Any]) -> dict[str, Any]:
+    """Background subagent: fill missing equipment/skills/spells for a character."""
+    char_id = str((proposal_data.get("proposal") or {}).get("character_id") or "")
+    character = db.get(Character, char_id) if char_id else None
+    if not character or character.campaign_id != campaign.id:
+        raise ValueError("character not found")
+    char_data = character.data or {}
+    basic = char_data.get("basic", {})
+    abilities = char_data.get("abilities", {})
+
+    # Build a rich prompt for the LLM
+    context = {
+        "name": character.character_name,
+        "class": basic.get("classes", [{}])[0].get("name", "?"),
+        "level": basic.get("classes", [{}])[0].get("level", 1),
+        "ancestry": basic.get("ancestry", ""),
+        "background": basic.get("background", ""),
+        "abilities": abilities,
+        "current_inventory": [i.get("name") for i in (char_data.get("inventory") or [])[:10]],
+        "current_skills": [k for k, v in (char_data.get("skills") or {}).items()
+                           if isinstance(v, dict) and v.get("proficient")],
+    }
+    import json as _j
+    llm_result = chat_completion([{
+        "role": "system", "content": (
+            "You are a D&D 5E character equipment designer. "
+            "Based on the character's class, level, ancestry and background, "
+            "suggest appropriate starting equipment (weapons, armor, gear), "
+            "and note which skills should be proficient. "
+            "Return a JSON with keys: inventory (list of {name,item_type,equipped,damage?,damage_type?,weight?,properties?}), "
+            "skills (list of skill names that should be proficient), "
+            "and notes (short Chinese description of your choices)."
+        ),
+    }, {"role": "user", "content": f"Character:\n{_j.dumps(context, ensure_ascii=False)}"}], temperature=0.5)
+    try:
+        suggestion = _j.loads(llm_result or "{}")
+    except Exception:
+        suggestion = {"inventory": [], "skills": [], "notes": "生成失败，请手动补全。"}
+
+    # Write back to character data
+    data = dict(char_data)
+    existing_inv = list(data.get("inventory") or [])
+    for item in suggestion.get("inventory") or []:
+        item.setdefault("item_type", "gear")
+        item.setdefault("equipped", item.get("item_type") == "weapon")
+        item.setdefault("quantity", 1)
+        existing_inv.append(item)
+    data["inventory"] = existing_inv
+
+    skills = dict(data.get("skills") or {})
+    for sk in suggestion.get("skills") or []:
+        if sk not in skills:
+            skills[sk] = {"proficient": True, "expertise": False, "bonus": 0}
+    data["skills"] = skills
+    character.data = data
+    db.commit()
+    return {"kind": "character_sheet_completed", "character_id": character.id,
+            "inventory_added": len(suggestion.get("inventory") or []),
+            "skills_added": len(suggestion.get("skills") or []),
+            "notes": suggestion.get("notes", "")}
+
+
+def bulk_character_from_settings(db, campaign: Campaign, proposal_data: dict[str, Any]) -> dict[str, Any]:
+    """Background subagent: create Character cards for all NPC settings."""
+    from app.campaign_editor import list_settings, setting_to_npc_character
+    from app.services import serialize
+
+    settings = [s for s in list_settings(db, campaign.id) if s.category in {"npc", "monster"}]
+    created = []
+    total = len(settings)
+    for i, setting in enumerate(settings):
+        char = setting_to_npc_character(db, setting)
+        created.append({"name": char.character_name, "id": char.id})
+        proposal_data["progress"] = f"{i+1}/{total}"
+        # Write progress so user can check mid-generation
+        db.commit()
+    return {
+        "kind": "bulk_character_cards",
+        "created": len(created),
+        "total": total,
+        "characters": created,
+        "progress": f"{len(created)}/{total}",
     }
 
 

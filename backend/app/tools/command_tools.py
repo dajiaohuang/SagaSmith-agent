@@ -1117,6 +1117,80 @@ def handle_read_attachment(
                turn_consuming=False)
 
 
+def handle_complete_character_sheet(
+    db: Session, campaign: Campaign,
+    character_name: str = "", **_kw: Any,
+) -> dict:
+    """Enqueue background subagent to complete a character sheet."""
+    from sqlalchemy import select as _sel
+    from app.db.models import TaskSession
+    from app.services import uid
+    from app.subagent_runner import enqueue_subagent_task
+
+    character = db.scalar(_sel(Character).where(
+        Character.campaign_id == campaign.id, Character.character_name == character_name,
+    ))
+    if not character:
+        return _err(f"未找到角色: {character_name}")
+    task = TaskSession(
+        id=uid("task"), campaign_id=campaign.id, task_type="subagent_proposal",
+        platform="system", chat_id=None, owner_user_id=None, session_id=None,
+        status="queued", priority=2, draft_data={},
+        proposal_data={"agent_role": "character_completer",
+                       "proposal": {"character_id": character.id}},
+        missing_fields=[], next_prompt=f"补全{character_name}的角色卡。",
+    )
+    db.add(task); db.commit()
+    enqueue_subagent_task(task.id)
+    return _ok(f"后台开始补全 {character_name} 的角色卡。完成后会自动通知你。")
+
+
+def handle_generate_cards_from_settings(
+    db: Session, campaign: Campaign, **_kw: Any,
+) -> dict:
+    """Enqueue background subagent to create character cards for all NPC settings."""
+    from app.campaign_editor import list_settings
+    from app.db.models import TaskSession
+    from app.services import uid
+    from app.subagent_runner import enqueue_subagent_task
+
+    settings = [s for s in list_settings(db, campaign.id) if s.category in {"npc", "monster"}]
+    if not settings:
+        return _err("no npc/monster settings found")
+    task = TaskSession(
+        id=uid("task"), campaign_id=campaign.id, task_type="subagent_proposal",
+        platform="system", chat_id=None, owner_user_id=None, session_id=None,
+        status="queued", priority=2, draft_data={},
+        proposal_data={"agent_role": "bulk_character_from_setting"},
+        missing_fields=[], next_prompt=f"为 {len(settings)} 个 NPC 生成角色卡",
+    )
+    db.add(task); db.commit()
+    enqueue_subagent_task(task.id)
+    return _ok(f"后台开始为 {len(settings)} 个 NPC 生成角色卡。完成后会自动通知你。")
+
+
+def handle_check_background_tasks(
+    db: Session, campaign: Campaign, **_kw: Any,
+) -> dict:
+    """Check background subagent task progress."""
+    from app.db.models import TaskSession
+    from sqlalchemy import select as _sel
+
+    tasks = db.scalars(_sel(TaskSession).where(
+        TaskSession.campaign_id == campaign.id,
+        TaskSession.task_type == "subagent_proposal",
+        TaskSession.status.in_(["queued", "running", "ready_to_review"]),
+    ).order_by(TaskSession.updated_at.desc()).limit(10)).all()
+    if not tasks:
+        return _ok("no bg tasks", turn_consuming=False)
+    lines = ["bg tasks:"]
+    for t in tasks:
+        prog = (t.proposal_data or {}).get("progress", "")
+        lines.append(f"  [{t.status}] {t.next_prompt or t.id[:20]} {prog}")
+    return _ok("\n".join(lines), task_count=len(tasks), turn_consuming=False)
+
+
+
 def handle_switch_campaign(
     db: Session, campaign: Campaign,
     campaign_name: str = "", **_kw: Any,
@@ -1203,6 +1277,9 @@ TOOL_HANDLERS: dict[str, Handler] = {
     "exit_to_lobby": handle_exit_to_lobby,
     "switch_campaign": handle_switch_campaign,
     "read_attachment": handle_read_attachment,
+    "complete_character_sheet": handle_complete_character_sheet,
+    "generate_cards_from_settings": handle_generate_cards_from_settings,
+    "check_background_tasks": handle_check_background_tasks,
     # Delegated to execute_command
     **_DELEGATED_HANDLERS,
 }
