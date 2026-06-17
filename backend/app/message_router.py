@@ -84,6 +84,16 @@ def process_message(
     scope_platform, _scope_chat, scope_owner, scope_session = task_scope(
         message_context or {"platform": "web"}, actor_id, session_id,
     )
+    # ── Check for completed background subagent tasks ──
+    from app.task_sessions import ready_reviews, format_ready_reviews
+    _reviews = ready_reviews(db, campaign, scope_platform, scope_owner, scope_session)
+    if _reviews:
+        _review_text = format_ready_reviews(_reviews)
+        message = f"{message}\n\n[系统通知] 你的后台任务已完成。请在回复中自然地告知用户：\n{_review_text}"
+        for t in _reviews:
+            t.status = "notified"
+        db.commit()
+
     # ── Character build, task reviews, effect actions → handled by LLM tools ──
     reaction_interrupt_commands = GLOBAL_SAFE_COMMANDS | {"next_turn"}
     if reaction_window(campaign) and (not command or command.name not in reaction_interrupt_commands):
