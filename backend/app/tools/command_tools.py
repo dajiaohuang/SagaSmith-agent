@@ -1339,6 +1339,33 @@ def handle_execute_plan(
     return _ok(f"已启动后台计划: {summary or str(len(steps))+' steps'}。完成后自动通知。")
 
 
+
+def handle_export_and_send(
+    db: Session, campaign: Campaign,
+    character_name: str = "", **_kw: Any,
+) -> dict:
+    """Generate xlsx for a character and store path for sending."""
+    from sqlalchemy import select as _sel
+    from pathlib import Path as _P
+    from app.tools.character_builder import export_character_sheet
+    from app.config import settings as _sett
+
+    character = db.scalar(_sel(Character).where(
+        Character.campaign_id == campaign.id, Character.character_name == character_name,
+    ))
+    if not character:
+        return _err(f"未找到角色: {character_name}")
+    template = next((_sett.data_dir / "raw").glob("*人物卡模板.xlsx"), None)
+    if not template:
+        return _err("人物卡模板未找到")
+    target_dir = _sett.data_dir / "generated" / "characters"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target = target_dir / f"{character.id}.xlsx"
+    export_character_sheet(character.data, character.player_name or "", _P(template), target)
+    return _ok(f"已导出 {character_name}.xlsx ({target.stat().st_size} bytes)",
+               file_path=str(target), character_name=character_name)
+
+
 def handle_switch_campaign(
     db: Session, campaign: Campaign,
     campaign_name: str = "", **_kw: Any,
@@ -1384,6 +1411,7 @@ TOOL_HANDLERS: dict[str, Handler] = {
     "bind_character": handle_bind_character,
     "show_bindings": handle_show_bindings,
     "export_character_sheet": handle_export_character_sheet,
+    "export_and_send": handle_export_and_send,
     "create_character_quick": handle_create_character_quick,
     "create_npc_quick": handle_create_npc_quick,
     "save_campaign_setting": handle_save_campaign_setting,

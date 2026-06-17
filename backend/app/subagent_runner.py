@@ -265,11 +265,12 @@ def generate_content(db, campaign: Campaign, proposal_data: dict[str, Any]) -> d
 
     import json as _j
 
-    # ── NPC batch ──
+    # ── NPC (always create settings + character cards) ──
     if ctype == "npc":
         batch_start = int(proposal.get("batch_start", 0))
         batch_size = int(proposal.get("batch_size", 6))
         total_count = int(proposal.get("total_count", batch_size))
+        create_cards = proposal.get("create_cards", True)  # default True
         llm_result = chat_completion([{
             "role": "system", "content": (
                 f"Generate {batch_size} unique NPCs for a {theme} setting. Each needs: "
@@ -285,17 +286,15 @@ def generate_content(db, campaign: Campaign, proposal_data: dict[str, Any]) -> d
             npcs = []
         from app.campaign_editor import create_draft as _cd, publish_drafts as _pd, setting_to_npc_character as _s2c, list_settings as _ls
         for npc in npcs:
-            _cd(db, campaign.id, "create", proposal={
-                "category": "npc", "name": npc.get("name", "?"),
-                "description": (
-                    f"职业: {npc.get('occupation','?')} | 种族: {npc.get('ancestry','?')} | "
-                    f"阵营: {npc.get('alignment','?')}\n性格: {npc.get('personality','?')}\n"
-                    f"外貌: {npc.get('appearance','?')}\n秘密: {npc.get('secret','?')}"
-                ),
-            })
+            desc = (
+                f"职业: {npc.get('occupation','?')} | 种族: {npc.get('ancestry','?')} | "
+                f"阵营: {npc.get('alignment','?')}\n性格: {npc.get('personality','?')}\n"
+                f"外貌: {npc.get('appearance','?')}\n秘密: {npc.get('secret','?')}"
+            )
+            _cd(db, campaign.id, "create", proposal={"category": "npc", "name": npc.get("name", "?"), "description": desc})
         published = _pd(db, campaign.id)
         card_names = []
-        if proposal.get("create_cards"):
+        if create_cards:
             for s in _ls(db, campaign.id):
                 if s.category == "npc":
                     ch = _s2c(db, s)
@@ -365,13 +364,13 @@ def generate_content(db, campaign: Campaign, proposal_data: dict[str, Any]) -> d
 
 import time as _time
 import json as _plan_json
-from app.tools.command_tools import TOOL_HANDLERS
 
 _PLAN_POLL_SLEEP = 2  # seconds between dependency checks
 
 
 def execute_plan_step(db, campaign: Campaign, proposal_data: dict[str, Any]) -> dict[str, Any]:
-    """Execute a single plan step by calling its tool handler."""
+    """Execute a single plan step by calling its tool handler synchronously."""
+    from app.tools.command_tools import TOOL_HANDLERS
     proposal = proposal_data.get("proposal") or {}
     step = proposal.get("plan_step") or {}
     args = dict(proposal.get("resolved_args") or {})
@@ -390,6 +389,7 @@ def execute_plan_step(db, campaign: Campaign, proposal_data: dict[str, Any]) -> 
 
 def run_plan(db, campaign: Campaign, proposal_data: dict[str, Any]) -> dict[str, Any]:
     """Coordinator subagent: enqueue plan steps as subagent tasks, wait for deps, chain results."""
+    from app.tools.command_tools import TOOL_HANDLERS
     proposal = proposal_data.get("proposal") or {}
     plan = proposal.get("plan") or {}
     steps = plan.get("steps") or []
