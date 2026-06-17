@@ -173,17 +173,7 @@ async def napcat_callback(
 
     campaign = adapter.default_campaign(db)
     if not campaign:
-        campaign = Campaign(
-            id=settings.napcat_campaign_id,
-            name=settings.napcat_campaign_id,
-            system_version="DND_5E_2014",
-            description="NapCat 自动创建",
-            config={"scene": "NapCat", "play_style": "lobby"},
-        )
-        db.add(campaign)
-        db.commit()
-        db.refresh(campaign)
-        set_active_napcat_campaign(db, campaign)
+        return {"reply": "还没有战役。请发送 /创建战役 名称 来创建第一个战役。", "auto_escape": False, "at_sender": False}
 
     # ── Send pending export files (from plan runner or background tasks) ──
     _pending = (campaign.config or {}).get("pending_exports") or []
