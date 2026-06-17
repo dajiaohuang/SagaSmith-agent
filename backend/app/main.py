@@ -185,6 +185,26 @@ async def napcat_callback(
         db.refresh(campaign)
         set_active_napcat_campaign(db, campaign)
 
+    # ── Send pending export files (from plan runner or background tasks) ──
+    _pending = (campaign.config or {}).get("pending_exports") or []
+    for _exp in _pending[:]:
+        _exp_path = _exp.get("file_path", "")
+        _exp_name = _exp.get("name", "character.xlsx")
+        if _exp_path and Path(_exp_path).exists():
+            try:
+                if payload.get("message_type") == "group":
+                    client.upload_group_file(group_id, _exp_path, _exp_name)
+                    client.send_group_at(group_id, user_id, f"角色卡 {_exp_name} 已导出。")
+                else:
+                    client.upload_private_file(user_id, _exp_path, _exp_name)
+            except Exception:
+                pass
+    # Clear pending exports
+    if _pending:
+        _cfg = copy.deepcopy(campaign.config or {})
+        _cfg.pop("pending_exports", None)
+        campaign.config = _cfg; db.commit()
+
     # ── 持久化最近附件 + 注入上下文 ──
     attachment_context = (parsed or {}).get("content", "")
     if attachment_context:
