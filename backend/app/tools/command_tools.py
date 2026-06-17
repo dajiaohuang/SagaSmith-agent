@@ -472,6 +472,51 @@ COMMAND_TOOLS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "create_campaign_from_prompt",
+            "description": "创建新战役。用户说「创建战役」「新建战役」「创建新战役」时调用。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "campaign_name": {"type": "string", "description": "新战役名称"},
+                    "description": {"type": "string", "description": "战役描述（可选）"},
+                },
+                "required": ["campaign_name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "enter_campaign_mode",
+            "description": "进入 DM 战役叙事模式。用户说「进入DM」「进入战役」「开始游戏」时调用。需要先有当前战役。",
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "exit_to_lobby",
+            "description": "退出当前模式，返回游戏外大厅。用户说「退出」「返回大厅」时调用。",
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "switch_campaign",
+            "description": "切换到另一个战役。用户说「切换战役」「换个战役」时调用。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "campaign_name": {"type": "string", "description": "要切换到的战役名称"},
+                },
+                "required": ["campaign_name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "memory_search",
             "description": "搜索战役记忆",
             "parameters": {
@@ -570,6 +615,12 @@ def handle_create_character_quick(
     )
     db.add(character)
     db.commit()
+    # Auto-bind QQ user if user_id is numeric
+    if user_id and user_id.isdigit():
+        try:
+            bind_qq(db, campaign.id, user_id, character, character_name)
+        except Exception:
+            pass
     return _ok(
         f"角色卡已创建：{character_name}（{character.id}）\n"
         f"职业：{class_name} 等级：{level} 种族：{ancestry}",
@@ -1051,6 +1102,7 @@ def handle_switch_campaign(
     return _ok(f"已切换到战役: {target.name}（{target.id}）")
 
 _DELEGATED = [
+    "create_campaign_from_prompt", "delete_active_campaign",
     "save", "pause", "resume",
     "enter_turn_mode", "exit_turn_mode",
     "start_combat", "end_combat", "next_turn",
@@ -1061,7 +1113,6 @@ _DELEGATED = [
     "enable_combat_roleplay", "disable_combat_roleplay",
     "create_npc_cards_from_settings",
     "memory_search", "spell_search",
-    "enter_campaign_mode", "exit_to_lobby", "switch_campaign",
 ]
 _DELEGATED_HANDLERS = {name: _via_execute_command(name) for name in _DELEGATED}
 
@@ -1158,6 +1209,7 @@ def tools_for_scope(campaign: Campaign, is_dm: bool) -> list[dict[str, Any]]:
     # ── Lobby mode: limited tool set ──
     lobby_tools = {
         "status", "create_campaign_from_prompt", "delete_active_campaign",
+        "enter_campaign_mode", "exit_to_lobby", "switch_campaign",
         "create_character_quick", "create_character_draft",
         "update_character_draft", "show_character_draft",
         "commit_character_draft", "cancel_character_draft",

@@ -370,7 +370,7 @@ def build_dm_context(
 
 
 def resolve_chat(db: Session, campaign_id: str | None, session_id: str | None, character_id: str | None,
-                 message: str, *, mode: str = "dm") -> dict:
+                 message: str, *, mode: str = "dm", message_context: dict | None = None) -> dict:
     """Unified DM narrative / dice assistant / lobby LLM path.
 
     mode="lobby" → game-external: campaign management, character creation
@@ -502,7 +502,7 @@ def resolve_chat(db: Session, campaign_id: str | None, session_id: str | None, c
     from app.llm_loop import execute_llm_with_tools
     _tool_result = execute_llm_with_tools(
         db, campaign, session_id, character_id, None, False, "",
-        None, messages=_msgs, skip_user_message=True,
+        message_context, messages=_msgs, skip_user_message=True,
     )
     if _tool_result.get("kind") == "llm_unavailable":
         narration = chat_completion(_msgs, temperature=temperature) or _fallback_text
