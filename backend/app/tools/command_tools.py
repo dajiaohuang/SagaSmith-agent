@@ -1060,6 +1060,12 @@ def _via_execute_command(command_name: str):
                 message_context: dict = None, **_kw: Any) -> dict:
         from app.commands import Command
         from app.campaign_control import execute_command
+        if campaign is None:
+            from app.db.models import Campaign as _Camp
+            from app.services import uid as _uid
+            campaign = _Camp(id=_uid("camp"), name="占位", system_version="DND_5E_2014",
+                             config={"play_style": "lobby"})
+            db.add(campaign); db.commit()
         return execute_command(
             db, Command(command_name), campaign,
             session_id, actor_id, is_dm, message_context,
