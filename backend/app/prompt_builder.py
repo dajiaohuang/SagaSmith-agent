@@ -238,6 +238,21 @@ def _turn_based_block(
 
 
 # ═══════════════════════════════════════════════════════════════════
+#  Module: PENDING BACKGROUND TASKS
+# ═══════════════════════════════════════════════════════════════════
+
+def _pending_tasks(db: Session | None, campaign: Campaign | None, message: str = "") -> str:
+    """Remind LLM about pending background tasks for this campaign."""
+    if not db or not campaign:
+        return ""
+    from app.task_sessions import ready_reviews, format_ready_reviews
+    reviews = ready_reviews(db, campaign, "system", "", None)
+    if not reviews:
+        return ""
+    return f"[后台任务完成待通知]\n{format_ready_reviews(reviews)}\n在回复中自然地告知用户。"
+
+
+# ═══════════════════════════════════════════════════════════════════
 #  ENTRY POINT
 # ═══════════════════════════════════════════════════════════════════
 
@@ -257,7 +272,10 @@ def build_system_prompt(
     Returns a list of {"role": "system", "content": ...} dicts.
     Each module returns "" when not applicable — those are filtered out.
     """
-    modules: list[str] = []
+    # ── Pending background tasks ──
+    _pending_modules = _pending_tasks(db, campaign, message)
+
+    modules: list[str] = [_pending_modules] if _pending_modules else []
 
     if turn_based:
         modules.append(_turn_based_block(campaign, character, db, narrative_mode))
