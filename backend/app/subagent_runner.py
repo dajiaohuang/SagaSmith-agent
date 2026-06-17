@@ -39,6 +39,8 @@ def run_subagent_task(task_id: str) -> None:
                 result = review_campaign_setting_drafts(db, campaign, proposal_data)
             elif role == "character_sheet_reviewer":
                 result = review_character_sheet(db, campaign, proposal_data)
+            elif role == "campaign_compressor":
+                result = compress_campaign_events(db, campaign, proposal_data)
             else:
                 result = generic_review(campaign, proposal_data)
             proposal_data["result"] = result
@@ -133,6 +135,24 @@ def review_character_sheet(db, campaign: Campaign, proposal_data: dict[str, Any]
             "如用于战斗，请确认 active_effects 与 inventory.effects 可被效果引擎读取。",
         ],
         "blocking_issues": issues,
+    }
+
+
+def compress_campaign_events(db, campaign: Campaign, proposal_data: dict[str, Any]) -> dict[str, Any]:
+    """Background subagent: compress old events into a summary and archive memories."""
+    from app.memory_compressor import COMPRESS_EVERY, get_uncompressed_events, mark_compressed, archive_old_memories, compress_with_llm
+
+    events = get_uncompressed_events(db, campaign.id, COMPRESS_EVERY)
+    if not events:
+        return {"kind": "campaign_compression", "summary": "无可压缩事件。", "compressed": 0}
+    summary = compress_with_llm(events, campaign.name or "")
+    mark_compressed(db, events)
+    archived = archive_old_memories(db, campaign.id)
+    return {
+        "kind": "campaign_compression",
+        "summary": summary,
+        "compressed_events": len(events),
+        "archived_memories": archived,
     }
 
 
