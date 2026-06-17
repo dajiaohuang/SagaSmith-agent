@@ -217,10 +217,7 @@ COMMAND_TOOLS: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "create_character_quick",
-            "description": (
-                "快速创建一张完整的角色卡并绑定到当前用户。当用户说「创建角色」「帮我车卡」「我要创建角色」"
-                "并且提供了名字和职业时调用此工具。创建后可以直接导出。"
-            ),
+            "description": "快速创建角色卡并绑定当前用户。需提供角色名和职业。",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -266,11 +263,7 @@ COMMAND_TOOLS: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "create_character_draft",
-            "description": (
-                "创建一个车卡草稿。当用户想分步创建角色、需要反复修改时使用。"
-                "如果用户已经提供了名字和职业，直接在此工具中填入。"
-                "如果用户只说了「车卡」但没有具体信息，创建一个空白草稿。"
-            ),
+            "description": "创建可逐步编辑的车卡草稿。可带初始字段或留空。",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -289,10 +282,7 @@ COMMAND_TOOLS: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "update_character_draft",
-            "description": (
-                "更新当前车卡草稿的字段。用户说「力量改成16」「种族改成精灵」时调用。"
-                "一次可以更新多个字段。"
-            ),
+            "description": "更新车卡草稿的字段，一次可更新多个。",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -1216,12 +1206,13 @@ TOOL_HANDLERS: dict[str, Handler] = {
 }
 
 
-def tools_for_scope(campaign: Campaign, is_dm: bool) -> list[dict[str, Any]]:
-    """Return tools available given the current campaign mode and user role."""
+def tools_for_scope(campaign: Campaign, is_dm: bool, message: str = "") -> list[dict[str, Any]]:
+    """Return tools available given the current campaign mode, user role, and message context."""
     from app.campaign_control import play_style
     from app.campaign_turns import runtime_mode
     mode = runtime_mode(campaign)
     style = play_style(campaign)
+    msg_lower = message.lower() if message else ""
 
     dm_only_commands = {
         "save", "pause", "resume", "enter_turn_mode", "exit_turn_mode",
@@ -1284,8 +1275,18 @@ def tools_for_scope(campaign: Campaign, is_dm: bool) -> list[dict[str, Any]]:
         allowed |= {"next_turn", "start_combat", "end_combat"}
 
     result = [t for t in COMMAND_TOOLS if t["function"]["name"] in allowed and t["function"]["name"] not in slash_only]
-    # Check and combat tools only in game modes (not lobby)
+    # Check and combat tools only in game modes (not lobby), filtered by message relevance
     if style != "lobby":
-        result.extend(CHECK_TOOLS)
-        result.extend([t for t in COMBAT_TOOLS if t["function"]["name"] not in slash_only])
+        _has_mech = any(kw in msg_lower for kw in (
+            "攻击", "attack", "伤害", "damage", "治疗", "heal", "检定", "check",
+            "豁免", "save", "属性", "ability", "技能", "skill", "法术", "spell",
+            "施法", "cast", "hp", "ac", "先攻", "initiative", "力量", "敏捷",
+            "体质", "智力", "感知", "魅力", "武器", "weapon", "护甲", "armor",
+            "状态", "condition", "效果", "effect", "疾走", "dash", "撤退", "disengage",
+            "闪避", "dodge", "结束回合", "end turn", "动作如潮", "action surge",
+            "撤销", "undo", "回退", "回滚",
+        ))
+        if _has_mech or not msg_lower:
+            result.extend(CHECK_TOOLS)
+            result.extend([t for t in COMBAT_TOOLS if t["function"]["name"] not in slash_only])
     return result

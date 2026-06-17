@@ -547,7 +547,7 @@ def resolve_dice_tool_question(
     ]
 
     # Try LLM function-calling tools; fall back to plain chat_completion if no tools triggered
-    _tools = tools_for_scope(campaign, is_dm=False)
+    _tools = tools_for_scope(campaign, is_dm=False, message=message)
     _tool_used = False
     try:
         _resp = chat_completion(_msgs, temperature=0.2, tools=_tools)

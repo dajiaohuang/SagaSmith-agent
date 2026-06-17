@@ -270,7 +270,7 @@ def build_dm_context(
         select(CampaignEvent)
         .where(CampaignEvent.campaign_id == campaign_id)
         .order_by(CampaignEvent.created_at.desc())
-        .limit(12)
+        .limit(5)
     ).all()
     session_events = []
     if session_id:
@@ -278,14 +278,14 @@ def build_dm_context(
             select(CampaignEvent)
             .where(CampaignEvent.campaign_id == campaign_id, CampaignEvent.session_id == session_id)
             .order_by(CampaignEvent.created_at.desc())
-            .limit(12)
+            .limit(5)
         ).all()
     by_id = {item.id: item for item in [*campaign_events, *session_events]}
-    events = sorted(by_id.values(), key=lambda item: item.created_at)[-16:]
-    rules = search_rules(db, message, 3)
-    spells = search_spells(message, settings.data_dir, 3)
+    events = sorted(by_id.values(), key=lambda item: item.created_at)[-5:]
+    rules = search_rules(db, message, 1)
+    spells = search_spells(message, settings.data_dir, 1)
     memory_package = build_memory_package(db, campaign_id, message, session_id)
-    campaign_settings = search_settings(db, campaign_id, message, 5)
+    campaign_settings = search_settings(db, campaign_id, message, 3)
     dm_actors = [
         roleplay_brief(item)
         for item in db.scalars(select(Character).where(Character.campaign_id == campaign_id)).all()
@@ -293,12 +293,7 @@ def build_dm_context(
     ]
     context = {
         "campaign": serialize(campaign) if campaign else None,
-        "character": (
-            {**serialize(character), "data": resolve_effective_character(
-                character.data, bool(((campaign.config or {}).get("turn_state") or {}).get("combat")),
-            )}
-            if character else None
-        ),
+        "character": {"name": character.character_name, "id": character.id} if character else None,
         "summaries": [
             {"scope": item.scope, "scope_id": item.scope_id, "summary": item.summary, "open_threads": item.open_threads}
             for item in summaries
@@ -491,11 +486,20 @@ def resolve_chat(db: Session, campaign_id: str | None, session_id: str | None, c
             "When an action can use multiple skills (e.g. climbing: Athletics or Acrobatics), "
             "call ask_clarification to let the player choose which skill to use."
         )
+    # HotSnapshot: only inject when message likely needs mechanical data
     if character:
-        _hot = hot_character_for_llm(db, character.id)
-        if _hot:
-            import json as _hot_json
-            _sys += f"\n\n[当前角色热数据]\n{_hot_json.dumps(_hot, ensure_ascii=False)}"
+        _mech_keywords = {"攻击", "attack", "伤害", "damage", "治疗", "heal", "检定", "check",
+                          "豁免", "save", "属性", "ability", "技能", "skill", "法术", "spell",
+                          "施法", "cast", "HP", "AC", "先攻", "initiative", "力量", "敏捷",
+                          "体质", "智力", "感知", "魅力", "str", "dex", "con", "int", "wis", "cha",
+                          "熟练", "proficiency", "长剑", "武器", "weapon", "护甲", "armor",
+                          "状态", "condition", "效果", "effect", "车卡", "角色卡", "sheet"}
+        _msg_lower = message.lower()
+        if any(kw.lower() in _msg_lower for kw in _mech_keywords):
+            _hot = hot_character_for_llm(db, character.id)
+            if _hot:
+                import json as _hot_json
+                _sys += f"\n\n[当前角色热数据]\n{_hot_json.dumps(_hot, ensure_ascii=False)}"
     _msgs = [
         {"role": "system", "content": _sys},
         {"role": "system", "content": context_prompt},

@@ -42,7 +42,7 @@ def execute_llm_with_tools(
     Can either pass ``message`` + ``system_prompt`` (simple case) OR pre-built ``messages``.
     Returns a dict compatible with ``command_result()`` output.
     """
-    tools = tools_for_scope(campaign, is_dm)
+    tools = tools_for_scope(campaign, is_dm, message=message if message else "")
     if extra_tools:
         tools = list(tools) + extra_tools
 
@@ -146,14 +146,16 @@ def execute_llm_with_tools(
                 else:
                     result = {"ok": False, "narration": f"未知工具: {tool_name}"}
 
+                # Only send narration back to LLM (save ~150 tokens per tool call)
+                _tool_content = result.get("narration", "") if isinstance(result, dict) else str(result)
                 messages.append({
                     "role": "tool",
                     "tool_call_id": tc.id,
-                    "content": json.dumps(result, ensure_ascii=False, default=str),
+                    "content": _tool_content,
                 })
 
             # After executing tools, re-filter tools based on potentially changed mode
-            tools = tools_for_scope(campaign, is_dm)
+            tools = tools_for_scope(campaign, is_dm, message=message if message else "")
             if extra_tools:
                 tools = list(tools) + extra_tools
 
