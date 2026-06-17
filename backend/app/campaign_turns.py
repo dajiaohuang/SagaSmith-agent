@@ -157,6 +157,7 @@ def advance_turn(db: Session, campaign: Campaign) -> dict | None:
         participants[next_index]["reaction_available"] = True
     _save(db, campaign, "turn_based", state)
     advance_character_effects(db, campaign, "turn_start")
+    init_turn_actions(db, campaign, participants[next_index].get("character_id", ""))
     return participants[next_index]
 
 
@@ -207,3 +208,64 @@ def format_turn_state(campaign: Campaign) -> str:
     current_text = f"{current['name']}（{current['actor_type']}）" if current else "无"
     combat_text = "战斗中" if state.get("combat") else "非战斗"
     return f"当前模式：回合制模式（{combat_text}）\n轮次：{state.get('round', 1)}\n当前行动者：{current_text}"
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  Turn Action Quota Tracking
+# ═══════════════════════════════════════════════════════════════════
+
+DEFAULT_ACTIONS = {
+    "main_action": 1,
+    "bonus_action": 1,
+    "reaction": 1,
+    "movement": 30,
+    "extra_actions": 0,
+}
+
+
+def get_actions_remaining(campaign: Campaign) -> dict:
+    """Return current turn's action quota."""
+    ts = (campaign.config or {}).get("turn_state") or {}
+    current = ts.get("current_turn") or {}
+    return {**DEFAULT_ACTIONS, **current.get("actions_remaining", {})}
+
+
+def set_actions_remaining(db: Session, campaign: Campaign, actions: dict) -> None:
+    """Update current turn's action quota."""
+    config = copy.deepcopy(campaign.config or {})
+    ts = config.setdefault("turn_state", {})
+    current = ts.setdefault("current_turn", {})
+    current["actions_remaining"] = actions
+    campaign.config = config
+    db.commit()
+
+
+def init_turn_actions(db: Session, campaign: Campaign, character_id: str = "") -> dict:
+    """Reset action quota at the start of a turn."""
+    actions = dict(DEFAULT_ACTIONS)
+    set_actions_remaining(db, campaign, actions)
+    return actions
+
+
+def consume_action(db: Session, campaign: Campaign, action_type: str, amount: int = 1) -> dict | None:
+    """Consume one unit of an action type. Returns remaining quota or None if not enough."""
+    actions = get_actions_remaining(campaign)
+    if actions.get(action_type, 0) < amount:
+        return None  # Not enough
+    actions[action_type] -= amount
+    set_actions_remaining(db, campaign, actions)
+    return actions
+
+
+def format_actions_remaining(campaign: Campaign) -> str:
+    """Human-readable remaining actions summary."""
+    a = get_actions_remaining(campaign)
+    parts = []
+    if a.get("main_action", 0) > 0:
+        parts.append(f"主动作×{a['main_action']}")
+    if a.get("extra_actions", 0) > 0:
+        parts.append(f"额外动作×{a['extra_actions']}")
+    if a.get("bonus_action", 0) > 0:
+        parts.append(f"附赠动作×{a['bonus_action']}")
+    parts.append(f"移动{a.get('movement', 0)}尺")
+    return " | ".join(parts) if parts else "无可用动作"

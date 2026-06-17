@@ -11,6 +11,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.db.models import Campaign, Character
+from app.campaign_turns import consume_action, get_actions_remaining, init_turn_actions, format_actions_remaining
 from app.tools.dice import roll_dice
 
 
@@ -139,6 +140,39 @@ COMBAT_TOOLS: list[dict[str, Any]] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "use_feature",
+            "description": (
+                "使用职业或种族特性。如：动作如潮（获得额外动作）、回气（恢复HP）、"
+                "至圣斩（额外伤害）等。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "feature_name": {"type": "string", "description": "特性名：action_surge/second_wind/smite/rage/cunning_action 等"},
+                },
+                "required": ["feature_name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "end_turn",
+            "description": "结束当前回合。当用户说「结束回合」「回合结束」「过」时调用。将推进到下一个行动者。",
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "turn_status",
+            "description": "查询当前回合的剩余动作配额（主动作、附赠动作、移动、额外动作）。用户问「我还有多少动作」「还能做什么」时调用。",
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
 ]
 
 
@@ -146,11 +180,19 @@ COMBAT_TOOLS: list[dict[str, Any]] = [
 #  COMBAT TOOL HANDLERS
 # ═══════════════════════════════════════════════════════════════════
 
+def _consume(db: Session, campaign: Campaign, action_type: str, amount: int = 1) -> str:
+    """Consume action and return remaining summary. Raises ValueError if not enough."""
+    remaining = consume_action(db, campaign, action_type, amount)
+    if remaining is None:
+        raise ValueError(f"没有足够的 {action_type}（需要 {amount}）")
+    return format_actions_remaining(campaign)
+
 def handle_combat_attack(
     db: Session, campaign: Campaign,
     character: Character | None = None,
     target: str = "", weapon: str = "",
     attack_index: int = 1,
+    use_bonus_action: bool = False,
     **_kw: Any,
 ) -> dict:
     """Resolve a weapon attack roll."""
@@ -196,10 +238,22 @@ def handle_combat_attack(
     dmg_roll = roll_dice(damage)
     total_damage = dmg_roll["total"] + max(0, ability_mod := (abilities.get("str", 10) // 2 - 5))
 
+    # Consume action
+    try:
+        if use_bonus_action:
+            remaining = _consume(db, campaign, "bonus_action")
+        elif get_actions_remaining(campaign).get("extra_actions", 0) > 0:
+            remaining = _consume(db, campaign, "extra_actions")
+        else:
+            remaining = _consume(db, campaign, "main_action")
+    except ValueError as e:
+        return _err(f"无法攻击: {e}")
+
     narration = (
         f"⚔️ {character.character_name} 用{weapon_name}攻击 {target}：\n"
         f"   攻击检定 d20+{attack_bonus} = {attack_roll['total']}\n"
-        f"   伤害 {damage} = {dmg_roll['total']}（{damage_type}）"
+        f"   伤害 {damage} = {dmg_roll['total']}（{damage_type}）\n"
+        f"   剩余: {remaining}"
     )
     return _ok(
         narration,
@@ -210,7 +264,7 @@ def handle_combat_attack(
         weapon=weapon_name,
         target=target,
         rolls=[attack_roll, dmg_roll],
-        turn_consuming=True,
+        turn_consuming=False,
     )
 
 
@@ -238,6 +292,19 @@ def handle_combat_cast_spell(
     # Find spell in character's spells
     spells = char_data.get("spells") or []
     spell_data = next((s for s in spells if s.get("name", "").lower() == spell_name.lower()), None)
+
+    # Consume action
+    try:
+        if use_bonus_action:
+            remaining = _consume(db, campaign, "bonus_action")
+        elif use_reaction:
+            remaining = _consume(db, campaign, "reaction")
+        elif get_actions_remaining(campaign).get("extra_actions", 0) > 0:
+            remaining = _consume(db, campaign, "extra_actions")
+        else:
+            remaining = _consume(db, campaign, "main_action")
+    except ValueError as e:
+        return _err(f"无法施法: {e}")
 
     action_type = "附赠动作" if use_bonus_action else "反应" if use_reaction else "动作"
     targets_str = "、".join(targets) if targets else "（无目标）"
@@ -268,7 +335,7 @@ def handle_combat_cast_spell(
         spell_name=spell_name, spell_level=spell_level,
         save_dc=save_dc, save_type=save_type,
         targets=targets, action_type=action_type,
-        turn_consuming=True,
+        turn_consuming=False,
     )
 
 
@@ -324,26 +391,38 @@ def handle_combat_ability_check(
         narration,
         ability=ability, bonus=bonus, roll=roll["total"],
         target=target, reason=reason, rolls=[roll],
-        turn_consuming=True,
+        turn_consuming=False,
     )
 
 
-def handle_dash(**_kw: Any) -> dict:
+def handle_dash(db: Session = None, campaign: Campaign = None, **_kw: Any) -> dict:
     character = _kw.get("character")
     name = character.character_name if character else "角色"
-    return _ok(f"🏃 {name} 使用动作疾走，本回合速度翻倍。", turn_consuming=True)
+    try:
+        remaining = _consume(db, campaign, "main_action")
+    except ValueError as e:
+        return _err(f"无法疾走: {e}")
+    return _ok(f"🏃 {name} 使用动作疾走，本回合速度翻倍。剩余: {remaining}", turn_consuming=False)
 
 
-def handle_disengage(**_kw: Any) -> dict:
+def handle_disengage(db: Session = None, campaign: Campaign = None, **_kw: Any) -> dict:
     character = _kw.get("character")
     name = character.character_name if character else "角色"
-    return _ok(f"🛡️ {name} 使用动作撤退脱离，移动不触发借机攻击。", turn_consuming=True)
+    try:
+        remaining = _consume(db, campaign, "main_action")
+    except ValueError as e:
+        return _err(f"无法撤退: {e}")
+    return _ok(f"🛡️ {name} 使用动作撤退脱离，移动不触发借机攻击。剩余: {remaining}", turn_consuming=False)
 
 
-def handle_dodge(**_kw: Any) -> dict:
+def handle_dodge(db: Session = None, campaign: Campaign = None, **_kw: Any) -> dict:
     character = _kw.get("character")
     name = character.character_name if character else "角色"
-    return _ok(f"👁️ {name} 使用动作闪避。攻击有劣势，敏捷豁免有优势。", turn_consuming=True)
+    try:
+        remaining = _consume(db, campaign, "main_action")
+    except ValueError as e:
+        return _err(f"无法闪避: {e}")
+    return _ok(f"👁️ {name} 使用动作闪避。攻击有劣势，敏捷豁免有优势。剩余: {remaining}", turn_consuming=False)
 
 
 def handle_ask_clarification(
@@ -362,6 +441,80 @@ def handle_ask_clarification(
     )
 
 
+def handle_use_feature(
+    db: Session = None, campaign: Campaign = None,
+    character: Character | None = None,
+    feature_name: str = "",
+    **_kw: Any,
+) -> dict:
+    """Handle class/racial feature usage."""
+    name = character.character_name if character else "角色"
+    feature_name = feature_name.lower().strip()
+
+    if feature_name in ("action_surge", "动作如潮", "动作如潮"):
+        init_turn_actions(db, campaign)  # Reset actions — ACTION SURGE!
+        actions = get_actions_remaining(campaign)
+        actions["extra_actions"] = 1  # One extra action
+        from app.campaign_turns import set_actions_remaining
+        set_actions_remaining(db, campaign, actions)
+        remaining = format_actions_remaining(campaign)
+        return _ok(f"⚡ {name} 发动动作如潮！获得额外动作。剩余: {remaining}", turn_consuming=False)
+
+    if feature_name in ("second_wind", "回气"):
+        if character:
+            data = character.data or {}
+            combat = data.get("combat", {})
+            level = int((data.get("basic", {}).get("classes", [{}])[0].get("level", 1)))
+            heal = roll_dice(f"1d10+{level}")
+            before = int(combat.get("current_hp", 0))
+            maximum = int(combat.get("max_hp", before))
+            after = min(maximum, before + heal["total"])
+            combat["current_hp"] = after
+            data["combat"] = combat
+            # Consume bonus action for second wind
+            try:
+                remaining = _consume(db, campaign, "bonus_action")
+            except ValueError:
+                remaining = format_actions_remaining(campaign)
+            return _ok(
+                f"💨 {name} 使用回气：恢复 {heal['total']} HP ({before}→{after})。剩余: {remaining}",
+                hp_before=before, hp_after=after, turn_consuming=False,
+            )
+
+    if feature_name in ("rage", "狂暴"):
+        try:
+            remaining = _consume(db, campaign, "bonus_action")
+        except ValueError:
+            return _err("狂暴需要附赠动作，但已用完。")
+        return _ok(f"💢 {name} 进入狂暴状态。力量攻击优势，物理伤害抗性。剩余: {remaining}", turn_consuming=False)
+
+    return _err(f"未知特性: {feature_name}。支持: action_surge, second_wind, rage")
+
+
+def handle_end_turn(
+    db: Session = None, campaign: Campaign = None,
+    character: Character | None = None,
+    **_kw: Any,
+) -> dict:
+    """End the current turn and advance to the next."""
+    from app.campaign_turns import advance_turn
+    name = character.character_name if character else "角色"
+    next_turn = advance_turn(db, campaign)
+    next_name = next_turn.get("name", "?") if next_turn else "?"
+    return _ok(f"✅ {name} 结束回合。下一个: {next_name}", turn_consuming=True)
+
+
+def handle_turn_status(
+    db: Session = None, campaign: Campaign = None,
+    character: Character | None = None,
+    **_kw: Any,
+) -> dict:
+    """Report current turn's remaining actions."""
+    name = character.character_name if character else "当前角色"
+    remaining = format_actions_remaining(campaign)
+    return _ok(f"🎯 {name} 的回合。剩余: {remaining}", turn_consuming=False)
+
+
 # ═══════════════════════════════════════════════════════════════════
 #  HANDLER REGISTRY
 # ═══════════════════════════════════════════════════════════════════
@@ -374,4 +527,7 @@ COMBAT_HANDLERS: dict[str, Any] = {
     "combat_disengage": handle_disengage,
     "combat_dodge": handle_dodge,
     "ask_clarification": handle_ask_clarification,
+    "use_feature": handle_use_feature,
+    "end_turn": handle_end_turn,
+    "turn_status": handle_turn_status,
 }
