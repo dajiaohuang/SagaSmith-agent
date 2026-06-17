@@ -781,7 +781,7 @@ def resolve_dice_assistant(
     has_explicit_dice_formula = bool(re.search(r"(?<!\w)\d*d\d+(?:[+-]\d+)?(?!\w)", lowered))
     if is_question and not has_explicit_dice_formula:
         from app.services import resolve_chat
-        result = resolve_chat(db, campaign.id, None, character.id if character else None, message, mode="dice")
+        result = resolve_chat(db, campaign.id, None, character.id if character else None, message, mode="dice", message_context=None)
         return _non_turn_result(_result(result.get("narration", ""), result.get("rolls", []), result.get("state_changes", [])))
 
     # Direct dice formula → fast-path atomic roll (keep)

@@ -106,7 +106,7 @@ def process_message(
     # ── Lobby mode → game-external management (non-command messages) ──
     if lobby_mode:
         from app.services import resolve_chat as _lobby_chat
-        return _lobby_chat(db, campaign.id, session_id, character_id, message, mode="lobby")
+        return _lobby_chat(db, campaign.id, session_id, character_id, message, mode="lobby", message_context=message_context)
 
     # ── Dice mode: keep DM-confirmation fast path, rest handled by LLM tools ──
     if dice_mode:
@@ -189,7 +189,7 @@ def process_message(
 
     # ── Default: DM narrative mode ──
     from app.services import resolve_chat
-    result = resolve_chat(db, campaign.id, session_id, action_character_id, message)
+    result = resolve_chat(db, campaign.id, session_id, action_character_id, message, message_context=message_context)
     return result
 
 
