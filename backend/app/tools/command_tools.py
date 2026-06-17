@@ -1313,6 +1313,32 @@ def handle_generate_content(
         return _ok(f"后台生成 {type}（{count}个）。完成后通知。")
 
 
+
+def handle_execute_plan(
+    db: Session, campaign: Campaign, steps: list = None, summary: str = "", **_kw: Any,
+) -> dict:
+    """Submit a multi-step plan for background execution."""
+    if not steps:
+        return _err("plan requires at least one step")
+    from app.db.models import TaskSession
+    from app.services import uid
+    from app.subagent_runner import enqueue_subagent_task
+
+    task = TaskSession(
+        id=uid("task"), campaign_id=campaign.id, task_type="subagent_proposal",
+        platform="system", chat_id=None, owner_user_id=None, session_id=None,
+        status="queued", priority=3, draft_data={},
+        proposal_data={
+            "agent_role": "plan_runner",
+            "proposal": {"plan": {"steps": steps, "summary": summary}},
+        },
+        missing_fields=[], next_prompt=f"Plan: {summary} ({len(steps)} steps)",
+    )
+    db.add(task); db.commit()
+    enqueue_subagent_task(task.id)
+    return _ok(f"已启动后台计划: {summary or str(len(steps))+' steps'}。完成后自动通知。")
+
+
 def handle_switch_campaign(
     db: Session, campaign: Campaign,
     campaign_name: str = "", **_kw: Any,
@@ -1400,6 +1426,7 @@ TOOL_HANDLERS: dict[str, Handler] = {
     "switch_campaign": handle_switch_campaign,
     "read_attachment": handle_read_attachment,
     "complete_character_sheet": handle_complete_character_sheet,
+    "execute_plan": handle_execute_plan,
     "generate_cards_from_settings": handle_generate_cards_from_settings,
     "generate_npc_set": handle_generate_npc_set,
     "generate_content": handle_generate_content,
