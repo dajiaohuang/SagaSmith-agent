@@ -192,12 +192,19 @@ def execute_command(
                  "combat_preference_style": preference_style(campaign)})
 
     if command.name == "create_campaign_from_prompt":
-        config = copy.deepcopy(campaign.config or {})
-        name = str(config.get("pending_generated_campaign_name") or "").strip() or f"{campaign.name}·新章"
-        description = str(config.get("pending_generated_campaign_description") or campaign.description or "").strip()
-        new_config = _campaign_creation_context(campaign)
-        new_campaign = Campaign(id=uid("camp"), name=name, system_version=campaign.system_version,
-                                description=description, config=new_config)
+        if campaign:
+            config = copy.deepcopy(campaign.config or {})
+            name = str(config.get("pending_generated_campaign_name") or "").strip() or f"{campaign.name}·新章"
+            desc = str(config.get("pending_generated_campaign_description") or campaign.description or "").strip()
+            new_config = _campaign_creation_context(campaign)
+            system_ver = campaign.system_version
+        else:
+            name = "新战役"
+            desc = ""
+            new_config = {"scene": "新场景", "play_style": "lobby"}
+            system_ver = "DND_5E_2014"
+        new_campaign = Campaign(id=uid("camp"), name=name, system_version=system_ver,
+                                description=desc, config=new_config)
         db.add(new_campaign)
         db.commit()
         set_active_napcat_campaign(db, new_campaign)
