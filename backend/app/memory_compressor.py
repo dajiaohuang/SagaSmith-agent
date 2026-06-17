@@ -96,30 +96,36 @@ def compress_with_llm(events: list[CampaignEvent], campaign_name: str = "") -> s
 
 
 def maybe_compress(db: Session, campaign_id: str, campaign_name: str = "") -> dict[str, Any] | None:
-    """If enough uncompressed events, compress them and archive old memories.
+    """If enough uncompressed events, enqueue background subagent to compress.
 
-    Called after every event append.  Returns compression result dict or None.
+    Called after every event append.  Never blocks — compression runs in the
+    existing ThreadPoolExecutor alongside other subagent tasks.
     """
     uncompressed = count_uncompressed(db, campaign_id)
     if uncompressed < COMPRESS_EVERY:
         return None
 
-    events = get_uncompressed_events(db, campaign_id, COMPRESS_EVERY)
-    if not events:
-        return None
+    try:
+        from app.db.models import TaskSession
+        from app.services import uid
+        from app.subagent_runner import enqueue_subagent_task
 
-    summary = compress_with_llm(events, campaign_name)
-    mark_compressed(db, events)
-
-    total_memories = db.query(CampaignEvent).filter(
-        CampaignEvent.campaign_id == campaign_id,
-    ).count()
-    archived = 0
-    if total_memories > MEMORY_ARCHIVE_THRESH:
-        archived = archive_old_memories(db, campaign_id, EVENT_RETENTION)
-
-    return {
-        "compressed_events": len(events),
-        "summary": summary[:200] + "..." if len(summary) > 200 else summary,
-        "archived_memories": archived,
-    }
+        task = TaskSession(
+            id=uid("task"),
+            campaign_id=campaign_id,
+            task_type="subagent_proposal",
+            platform="system",
+            chat_id=None, owner_user_id=None, session_id=None,
+            status="queued",
+            priority=1,  # Low priority — runs in background
+            draft_data={},
+            proposal_data={"agent_role": "campaign_compressor", "campaign_name": campaign_name},
+            missing_fields=[],
+            next_prompt="",
+        )
+        db.add(task)
+        db.commit()
+        enqueue_subagent_task(task.id)
+        return {"enqueued": True, "task_id": task.id}
+    except Exception:
+        return None  # Silently fallback — compression is best-effort
