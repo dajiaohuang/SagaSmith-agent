@@ -13,12 +13,16 @@ queryable, auditable, and rollback-able.
 
 | Mode | play_style | Description |
 |------|-----------|-------------|
-| **Lobby** | `lobby` | Manage campaigns, create characters, edit settings. May have no current campaign |
+| **Lobby** | `lobby` | Simple entry: list, create, or switch campaigns; quick character setup; enter DM |
 | **DM Mode** | `campaign` | AI Dungeon Master. Describe scenes, roleplay NPCs, advance plot |
 | **Dice Assistant** | `dice_assistant` | Mechanical tool. Pure computation, checks, combat resolution |
 
 Startup defaults to lobby. Send `/进入DM` or `/进入骰娘` to enter a game mode,
 `/退出` to return to lobby. All three share the same current campaign.
+Lobby does not generate long-form content or start background subagents. It can
+synchronously propose one random campaign or character concept and create it after confirmation.
+After a single character or NPC is confirmed, a blocking card-normalization subagent
+must pass rules validation and template XLSX round-trip validation before persistence.
 
 ## LLM Agent Tool Architecture
 
