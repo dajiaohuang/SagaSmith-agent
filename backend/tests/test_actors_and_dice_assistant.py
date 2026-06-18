@@ -13,7 +13,7 @@ def test_dice_assistant_natural_command_alias():
 
 def test_dice_assistant_automatically_executes_requested_roll(monkeypatch):
     monkeypatch.setattr(
-        "app.dice_assistant.chat_completion",
+        "app.services.chat_completion",
         lambda *args, **kwargs: "Please roll 1d20+4 to make the check.",
     )
     with TestClient(app) as client:

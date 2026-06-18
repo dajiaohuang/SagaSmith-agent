@@ -94,6 +94,7 @@ def test_napcat_callback_to_dm(monkeypatch):
 
     class FakeClient:
         self_id = "123"
+        self_ids = ["123"]
 
         def send_private_msg(self, user_id, message):
             sent["user_id"], sent["message"] = user_id, message
@@ -148,6 +149,7 @@ def test_napcat_group_turn_notification_ats_bound_player(monkeypatch):
 
     class FakeClient:
         self_id = "123"
+        self_ids = ["123"]
 
         def send_group_msg(self, group_id, message):
             sent.append(("message", str(group_id), message))
@@ -184,6 +186,7 @@ def test_napcat_group_turn_notification_ats_bound_player(monkeypatch):
 def test_napcat_group_reaction_notification_ats_eligible_players(monkeypatch):
     class FakeClient:
         self_id = "123"
+        self_ids = ["123"]
 
     monkeypatch.setattr("app.main.NapCatClient.from_settings", lambda: FakeClient())
     monkeypatch.setattr("app.main.download_attachments", lambda client, payload: (Path(tempfile.mkdtemp()), [], []))
@@ -211,6 +214,7 @@ def test_napcat_group_reaction_notification_ats_eligible_players(monkeypatch):
 def test_napcat_group_generic_task_mentions(monkeypatch):
     class FakeClient:
         self_id = "123"
+        self_ids = ["123"]
 
     monkeypatch.setattr("app.main.NapCatClient.from_settings", lambda: FakeClient())
     monkeypatch.setattr("app.main.download_attachments", lambda client, payload: (Path(tempfile.mkdtemp()), [], []))
@@ -239,6 +243,7 @@ def test_napcat_group_generic_task_mentions(monkeypatch):
 def test_napcat_campaign_edit_task_keeps_platform_scope(monkeypatch):
     class FakeClient:
         self_id = "123"
+        self_ids = ["123"]
 
     monkeypatch.setattr("app.main.NapCatClient.from_settings", lambda: FakeClient())
     monkeypatch.setattr("app.main.download_attachments", lambda client, payload: (Path(tempfile.mkdtemp()), [], []))
@@ -264,6 +269,7 @@ def test_napcat_active_campaign_switches_bound_character(monkeypatch):
 
     class FakeClient:
         self_id = "123"
+        self_ids = ["123"]
 
     monkeypatch.setattr("app.main.NapCatClient.from_settings", lambda: FakeClient())
     monkeypatch.setattr("app.main.download_attachments", lambda client, payload: (Path(tempfile.mkdtemp()), [], []))
@@ -313,6 +319,7 @@ def test_napcat_campaign_creation_in_dice_mode_routes_follow_up_to_new_campaign(
 
     class FakeClient:
         self_id = "123"
+        self_ids = ["123"]
 
     monkeypatch.setattr("app.main.NapCatClient.from_settings", lambda: FakeClient())
     monkeypatch.setattr("app.main.download_attachments", lambda client, payload: (Path(tempfile.mkdtemp()), [], []))
@@ -365,6 +372,7 @@ def test_campaign_confirmed_dm_has_napcat_dm_permission(monkeypatch):
 
     class FakeClient:
         self_id = "123"
+        self_ids = ["123"]
 
     monkeypatch.setattr("app.main.NapCatClient.from_settings", lambda: FakeClient())
     monkeypatch.setattr("app.main.download_attachments", lambda client, payload: (Path(tempfile.mkdtemp()), [], []))
@@ -393,6 +401,7 @@ def test_napcat_group_context_includes_reply_mentions_and_history(monkeypatch):
 
     class FakeClient:
         self_id = "123"
+        self_ids = ["123"]
 
         def get_message(self, message_id):
             assert str(message_id) == "77"
