@@ -2,6 +2,9 @@
 
 # DND DM Agent
 
+> [!WARNING]
+> This repository is an old version and is no longer the current implementation.
+
 A local-first LLM Agent system for long-running D&D 5E campaigns.
 Uses **OpenAI Function-Calling tools**: the LLM understands natural language,
 calls Python tools for deterministic dice rolls, state computation, and

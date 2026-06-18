@@ -1,5 +1,8 @@
 # DND DM Agent
 
+> [!WARNING]
+> **这是老版本，已不是当前使用的实现。**
+
 一个面向长期 D&D 5E 跑团的本地优先 LLM Agent 系统。
 通过 **OpenAI Function-Calling 工具架构**，LLM 理解自然语言意图后调用 Python 工具进行
 确定性投骰、状态计算和结构化数据写入。角色卡、NPC、物品、效果、战役设定和战斗状态
