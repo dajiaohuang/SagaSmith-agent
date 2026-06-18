@@ -7,6 +7,7 @@ feeds results back, and returns the final narration.
 from __future__ import annotations
 
 import json
+import inspect
 import logging
 from typing import Any
 
@@ -127,19 +128,21 @@ def execute_llm_with_tools(
 
                 if handler:
                     try:
-                        _allowed = {"db", "campaign", "session_id", "actor_id",
-                                    "is_dm", "user_id", "player_name",
-                                    "message_context", "character", "character_name",
-                                    "class_name", "level", "ancestry",
-                                    "background", "abilities", "category",
-                                    "name", "description", "query",
-                                    "target", "weapon", "attack_index",
-                                    "spell_name", "spell_level", "targets",
-                                    "save_type", "use_bonus_action", "use_reaction",
-                                    "ability", "reason", "question", "options",
-                                    "dc", "advantage", "disadvantage",
-                                    "amount", "damage_type", "condition"}
-                        result = handler(**{k: v for k, v in args.items() if k in _allowed})
+                        # Tool schemas are the public argument boundary.  The old
+                        # hand-maintained allowlist silently dropped valid Lobby
+                        # arguments (state, option_number, campaign_name, index,
+                        # steps, etc.), making correct tool calls fail.  Respect
+                        # each handler's signature instead so schemas and handlers
+                        # cannot drift apart again.
+                        _signature = inspect.signature(handler)
+                        _accepts_kwargs = any(
+                            p.kind == inspect.Parameter.VAR_KEYWORD
+                            for p in _signature.parameters.values()
+                        )
+                        _call_args = args if _accepts_kwargs else {
+                            k: v for k, v in args.items() if k in _signature.parameters
+                        }
+                        result = handler(**_call_args)
                     except Exception as exc:
                         _log.exception("Tool %s failed", tool_name)
                         result = {"ok": False, "narration": f"工具执行失败: {exc}"}

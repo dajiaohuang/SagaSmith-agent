@@ -547,6 +547,124 @@ COMMAND_TOOLS: list[dict[str, Any]] = [
             },
         },
     },
+    # ── Lobby content / workflow tools ──
+    {
+        "type": "function",
+        "function": {
+            "name": "complete_character_sheet",
+            "description": "在后台补全已有角色卡的装备、背景、外貌或全部缺失内容。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "character_name": {"type": "string", "description": "角色名"},
+                    "focus": {
+                        "type": "string",
+                        "description": "补全方向",
+                        "enum": ["all", "equipment", "backstory", "appearance"],
+                        "default": "all",
+                    },
+                },
+                "required": ["character_name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "generate_cards_from_settings",
+            "description": "把已发布的 NPC/怪物设定批量转换成角色卡。",
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "generate_npc_set",
+            "description": "在后台批量生成一组 NPC；适合用户明确要求多个 NPC 时使用。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "count": {"type": "integer", "minimum": 1, "description": "NPC 数量"},
+                    "theme": {"type": "string", "description": "主题或风格"},
+                    "batch_size": {"type": "integer", "minimum": 3, "maximum": 8, "default": 6},
+                },
+                "required": ["count"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "generate_setting",
+            "description": "在后台生成地点、组织、物品或事件类战役设定。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "category": {"type": "string", "enum": ["location", "faction", "item", "event"]},
+                    "theme": {"type": "string", "description": "主题或额外要求"},
+                    "count": {"type": "integer", "minimum": 1, "default": 1},
+                },
+                "required": ["category"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "generate_content",
+            "description": "统一的战役内容生成工具，可生成 NPC、地点、组织、物品、事件、任务、遭遇、战利品、传闻、回顾或备团材料。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "type": {"type": "string", "enum": ["npc", "location", "faction", "item", "event", "quest", "encounter", "loot", "rumor", "recap", "prep"]},
+                    "count": {"type": "integer", "minimum": 1, "default": 1},
+                    "theme": {"type": "string", "description": "主题或风格"},
+                    "prompt": {"type": "string", "description": "具体生成要求"},
+                    "batch_size": {"type": "integer", "minimum": 3, "maximum": 8, "default": 6},
+                },
+                "required": ["type"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "execute_plan",
+            "description": "把复杂的多步骤内容制作或车卡任务提交给后台计划执行器。简单任务不要使用。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "summary": {"type": "string", "description": "计划目标摘要"},
+                    "steps": {
+                        "type": "array",
+                        "description": "按依赖顺序执行的步骤",
+                        "items": {"type": "object"},
+                    },
+                },
+                "required": ["steps"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "check_background_tasks",
+            "description": "查看后台生成、补全和计划任务的当前进度。",
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "export_and_send",
+            "description": "导出指定角色的 XLSX 文件，供消息渠道发送。",
+            "parameters": {
+                "type": "object",
+                "properties": {"character_name": {"type": "string", "description": "角色名"}},
+                "required": ["character_name"],
+            },
+        },
+    },
 ]
 
 
@@ -1560,7 +1678,7 @@ TOOL_HANDLERS: dict[str, Handler] = {
 }
 
 
-def tools_for_scope(campaign: Campaign, is_dm: bool, message: str = "") -> list[dict[str, Any]]:
+def tools_for_scope(campaign: Campaign | None, is_dm: bool, message: str = "") -> list[dict[str, Any]]:
     """Return tools available given the current campaign mode, user role, and message context."""
     from app.campaign_control import play_style
     from app.campaign_turns import runtime_mode
@@ -1612,14 +1730,21 @@ def tools_for_scope(campaign: Campaign, is_dm: bool, message: str = "") -> list[
         "show_setting_drafts", "publish_setting_drafts", "discard_setting_drafts",
         "list_setting_drafts", "validate_settings",
         "bind_character", "show_bindings",
-        "export_character_sheet",
+        "export_character_sheet", "export_and_send", "read_attachment",
         "spell_search", "memory_search",
+        "complete_character_sheet", "generate_cards_from_settings",
+        "generate_npc_set", "generate_setting", "generate_content",
+        "execute_plan", "check_background_tasks",
     }
 
     allowed: set[str] = set(always_available)
     if is_dm:
         allowed |= dm_only_commands
     if style == "lobby":
+        # Lobby is the preparation/management workspace.  Keep combat and
+        # turn-consuming mechanics out, but expose all campaign, character,
+        # attachment, content-generation and background-workflow tools.
+        allowed |= lobby_tools
         result = [t for t in COMMAND_TOOLS if t["function"]["name"] in allowed and t["function"]["name"] not in slash_only]
         # Always include lobby tools in lobby mode
         result.extend(LOBBY_TOOLS)

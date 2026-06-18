@@ -21,6 +21,20 @@ class Campaign(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
 
 
+class LobbySessionState(Base):
+    """Persistent context for users who do not have an active campaign yet."""
+
+    __tablename__ = "lobby_session_states"
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    platform: Mapped[str] = mapped_column(String, default="web", index=True)
+    chat_id: Mapped[str | None] = mapped_column(String, index=True)
+    user_id: Mapped[str | None] = mapped_column(String, index=True)
+    state: Mapped[dict] = mapped_column(JSON, default=dict)
+    messages: Mapped[list] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
+
+
 class Character(Base):
     __tablename__ = "characters"
     id: Mapped[str] = mapped_column(String, primary_key=True)

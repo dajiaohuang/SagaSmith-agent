@@ -23,13 +23,21 @@ def _err(narration: str) -> dict:
     return {"ok": False, "kind": "lobby", "narration": narration}
 
 
-def _get_state(campaign: Campaign | None) -> dict:
+def _get_state(db: Session, campaign: Campaign | None, session_id: str | None = None) -> dict:
     if campaign is None:
-        return {}
+        from app.lobby_sessions import lobby_state
+        return lobby_state(db, session_id)
     return (campaign.config or {}).get("lobby_state") or {}
 
 
-def _set_state(db: Session, campaign: Campaign, state: dict) -> None:
+def _set_state(
+    db: Session, campaign: Campaign | None, state: dict,
+    session_id: str | None = None, message_context: dict | None = None,
+) -> None:
+    if campaign is None:
+        from app.lobby_sessions import set_lobby_state
+        set_lobby_state(db, session_id, state, message_context=message_context)
+        return
     cfg = copy.deepcopy(campaign.config or {})
     cfg["lobby_state"] = state
     campaign.config = cfg
@@ -102,28 +110,30 @@ LOBBY_TOOLS: list[dict[str, Any]] = [
 # ═══════════════════════════════════════════════════════════════════
 
 def handle_get_lobby_state(
-    db: Session, campaign: Campaign, **_kw: Any,
+    db: Session, campaign: Campaign | None, session_id: str | None = None, **_kw: Any,
 ) -> dict:
-    state = _get_state(campaign)
+    state = _get_state(db, campaign, session_id)
     return _ok(json.dumps(state, ensure_ascii=False, indent=2), state=state)
 
 
 def handle_set_lobby_state(
-    db: Session, campaign: Campaign, state: dict | None = None, **_kw: Any,
+    db: Session, campaign: Campaign | None, state: dict | None = None,
+    session_id: str | None = None, message_context: dict | None = None, **_kw: Any,
 ) -> dict:
     if not state:
         return _err("state is required")
-    current = _get_state(campaign)
+    current = _get_state(db, campaign, session_id)
     current.update(state)
-    _set_state(db, campaign, current)
+    _set_state(db, campaign, current, session_id, message_context)
     return _ok(f"大厅状态已更新。{len(current)} 个键。", state=current)
 
 
 def handle_resolve_lobby_option(
-    db: Session, campaign: Campaign,
-    option_number: int = 0, **_kw: Any,
+    db: Session, campaign: Campaign | None,
+    option_number: int = 0, session_id: str | None = None,
+    message_context: dict | None = None, **_kw: Any,
 ) -> dict:
-    state = _get_state(campaign)
+    state = _get_state(db, campaign, session_id)
     options = state.get("pending_options") or []
     if option_number < 1 or option_number > len(options):
         return _err(f"选项不存在。可选 1-{len(options)}。")
@@ -131,32 +141,17 @@ def handle_resolve_lobby_option(
     action = opt.get("action", "")
 
     if action == "create_campaign":
-        gs = state.get("generated_setting") or {}
-        name = gs.get("name", "新战役")
-        desc = gs.get("description", "")
-        # Create the campaign
-        from app.campaign_control import execute_command
-        from app.commands import Command
-        # Set DM confirmed
-        state["dm_confirmed"] = True
-        # Inject name/desc for the handler
-        cfg = copy.deepcopy(campaign.config or {})
-        cfg["pending_generated_campaign_name"] = name
-        cfg["pending_generated_campaign_description"] = desc
-        cfg["lobby_state"] = state
-        campaign.config = cfg; db.commit()
-        return execute_command(
-            db, Command("create_campaign_from_prompt"), campaign,
-            None, None, True, None,
-        )
+        return _create_campaign_from_state(db, campaign, state)
 
     elif action == "regenerate":
         state.pop("generated_setting", None)
         state.pop("pending_options", None)
-        _set_state(db, campaign, state)
+        _set_state(db, campaign, state, session_id, message_context)
         return _ok("已清除。请描述你想要的新战役。")
 
     elif action == "enter_dm":
+        if campaign is None:
+            return _err("当前没有活跃战役。请先创建战役。")
         cfg = copy.deepcopy(campaign.config or {})
         cfg["play_style"] = "campaign"
         cfg["lobby_state"] = state
@@ -164,6 +159,8 @@ def handle_resolve_lobby_option(
         return _ok(f"已进入 DM 模式。当前战役: {campaign.name}。")
 
     elif action == "enter_dice":
+        if campaign is None:
+            return _err("当前没有活跃战役。请先创建战役。")
         cfg = copy.deepcopy(campaign.config or {})
         cfg["play_style"] = "dice_assistant"
         cfg["lobby_state"] = state
@@ -174,13 +171,33 @@ def handle_resolve_lobby_option(
 
 
 def handle_create_campaign_now(
-    db: Session, campaign: Campaign, **_kw: Any,
+    db: Session, campaign: Campaign | None, session_id: str | None = None, **_kw: Any,
 ) -> dict:
-    state = _get_state(campaign)
+    state = _get_state(db, campaign, session_id)
+    return _create_campaign_from_state(db, campaign, state)
+
+
+def _create_campaign_from_state(
+    db: Session, campaign: Campaign | None, state: dict,
+) -> dict:
     gs = state.get("generated_setting") or {}
     name = gs.get("name", "新战役")
     desc = gs.get("description", "")
     state["dm_confirmed"] = True
+    if campaign is None:
+        from app.db.models import Campaign as _Campaign
+        from app.qq_bindings import set_active_napcat_campaign
+        from app.services import uid
+        new_campaign = _Campaign(
+            id=uid("camp"), name=name, description=desc,
+            system_version="DND_5E_2014",
+            config={"play_style": "lobby", "lobby_state": copy.deepcopy(state)},
+        )
+        db.add(new_campaign)
+        db.commit()
+        set_active_napcat_campaign(db, new_campaign)
+        return _ok(f"已创建并切换到新战役“{name}”（{new_campaign.id}）。",
+                   campaign_id=new_campaign.id)
     cfg = copy.deepcopy(campaign.config or {})
     cfg["pending_generated_campaign_name"] = name
     cfg["pending_generated_campaign_description"] = desc

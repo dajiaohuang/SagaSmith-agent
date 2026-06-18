@@ -30,7 +30,7 @@ from app.integrations.napcat import (NapCatAdapter, NapCatClient, callback_token
                                      is_allowed, is_group_at_event, is_supported_message,
                                      message_text, parse_event_text, replied_message_id)
 from app.message_router import process_message
-from app.platform_adapter import handle_platform_message
+from app.platform_adapter import build_message_context, handle_platform_message
 from app.commands import route_command
 from app.parsing.api import router as parsing_router
 from app.parsing.router import parse_files
@@ -173,9 +173,14 @@ async def napcat_callback(
 
     campaign = adapter.default_campaign(db)
     if not campaign:
-        # Direct to lobby mode — no campaign needed
+        # Persist a real Lobby session even before the first campaign exists.
         from app.services import resolve_chat
-        result = resolve_chat(db, None, None, None, text, mode="lobby")
+        incoming = adapter.incoming_from_payload(payload, text, reply_text=reply_text)
+        lobby_session_id = adapter.session_id(incoming)
+        result = resolve_chat(
+            db, None, lobby_session_id, None, text,
+            mode="lobby", message_context=build_message_context(incoming),
+        )
         return {"reply": result.get("narration", "大厅模式已就绪。"), "auto_escape": False, "at_sender": False}
 
     # ── Send pending export files (from plan runner or background tasks) ──

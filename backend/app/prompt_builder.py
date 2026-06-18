@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.models import Campaign, CampaignEvent, Character
@@ -104,13 +105,13 @@ def _combat_awareness(db: Session | None, campaign: Campaign | None, mode: str) 
     if mode != "dice" or not campaign or not db:
         return ""
     events = db.scalars(
-        db.query(CampaignEvent)
-        .filter(CampaignEvent.campaign_id == campaign.id)
+        select(CampaignEvent)
+        .where(CampaignEvent.campaign_id == campaign.id)
         .order_by(CampaignEvent.created_at.desc()).limit(8)
     ).all()
     text = " ".join(
         (getattr(e, "content", "") or "") + " " +
-        str((getattr(e, "metadata", {}) or {}).get("raw_player_input", ""))
+            str((getattr(e, "event_metadata", {}) or {}).get("raw_player_input", ""))
         for e in events
     ).lower()
     if not any(kw.lower() in text for kw in _COMBAT_SIGNS):

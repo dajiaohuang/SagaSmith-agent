@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.campaign_control import campaign_status, command_result, execute_command
 from app.commands import route_command
 from app.config import settings
 from app.db.models import Campaign, Character
-from sqlalchemy.orm import Session
 from app.services import append_event, serialize
 from app.campaign_memory import build_memory_package
 from app.campaign_turns import (
@@ -87,12 +87,10 @@ def process_message(
     # ── Check for completed background subagent tasks (any owner) ──
     from app.task_sessions import ready_reviews, format_ready_reviews
     from app.db.models import TaskSession
-    from sqlalchemy import or_
-
     # Find completed tasks: current user's + batch tasks for campaign
     _my_reviews = ready_reviews(db, campaign, scope_platform, scope_owner, scope_session)
     _all_campaign_reviews = db.scalars(
-        db.query(TaskSession).filter(
+        select(TaskSession).where(
             TaskSession.campaign_id == campaign.id,
             TaskSession.task_type == "subagent_proposal",
             TaskSession.status == "ready_to_review",
@@ -227,7 +225,11 @@ def process_message(
 
     # ── Default: DM narrative mode ──
     from app.services import resolve_chat
-    result = resolve_chat(db, campaign.id, session_id, action_character_id, message, message_context=message_context)
+    result = resolve_chat(
+        db, campaign.id, session_id, action_character_id, message,
+        mode="lobby" if lobby_mode else "dm",
+        message_context=message_context,
+    )
     return result
 
 

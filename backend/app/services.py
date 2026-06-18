@@ -396,7 +396,22 @@ def resolve_chat(db: Session, campaign_id: str | None, session_id: str | None, c
     _system_msgs = build_system_prompt(
         mode=mode, campaign=campaign, character=character, message=message, db=db,
     )
-    _msgs = _system_msgs + [
+    _lobby_history: list[dict] = []
+    if mode == "lobby" and campaign is None and session_id:
+        from app.lobby_sessions import get_lobby_session
+        _lobby_session = get_lobby_session(
+            db, session_id, create=True, message_context=message_context,
+        )
+        if _lobby_session:
+            if _lobby_session.state:
+                _system_msgs.append({
+                    "role": "system",
+                    "content": "当前持久化大厅状态：" + json.dumps(
+                        _lobby_session.state, ensure_ascii=False,
+                    ),
+                })
+            _lobby_history = list(_lobby_session.messages or [])[-16:]
+    _msgs = _system_msgs + _lobby_history + [
         {"role": "system", "content": context_prompt},
         {"role": "user", "content": message},
     ]
@@ -457,6 +472,11 @@ def resolve_chat(db: Session, campaign_id: str | None, session_id: str | None, c
             memory_plan={"extract_after_event": True, "intent_type": "dm_narrative", "skip": False},
         )
         events_list = [serialize(event)]
+    elif mode == "lobby" and session_id:
+        from app.lobby_sessions import append_lobby_exchange
+        append_lobby_exchange(
+            db, session_id, message, narration, message_context=message_context,
+        )
     return {"campaign_id": campaign_id, "message": message, "narration": narration,
             "data": result_data, "rolls": rolls, "state_changes": changes, "events": events_list}
 
