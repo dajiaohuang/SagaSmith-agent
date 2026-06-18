@@ -2,12 +2,12 @@
 
 本仓库 fork 自 [NanoBot](https://github.com/HKUDS/nanobot)，一个由 Python 编写的超轻量 OpenClaw。
 
-dnd-dm-agent 将在此基础上进行二次开发，并默认集成 [dnd-dm-skill](https://github.com/dajiaohuang/dnd-dm-skill) 提供的 D&D 地下城主人格、规则与技能。
+dnd-dm-agent 将在此基础上进行二次开发，并默认集成 [dnd-dm-skill](https://github.com/ackiles/dnd-dm-skill) 提供的 D&D 地下城主人格、规则与技能。
 
 ## 项目来源
 
 - Agent 框架：[HKUDS/nanobot](https://github.com/HKUDS/nanobot)
-- D&D DM Soul 与 Skill：[dajiaohuang/dnd-dm-skill](https://github.com/dajiaohuang/dnd-dm-skill)
+- D&D DM Soul 与 Skill：[ackiles/dnd-dm-skill](https://github.com/ackiles/dnd-dm-skill)
 
 ## 架构方向
 
