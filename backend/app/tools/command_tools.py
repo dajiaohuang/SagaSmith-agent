@@ -2128,40 +2128,25 @@ def tools_for_scope(campaign: Campaign | None, is_dm: bool, message: str = "") -
         "randomize_character_draft",
     }
 
-    # ── Lobby mode: limited tool set ──
-    lobby_tools = {
-        "status", "create_campaign_from_prompt", "delete_active_campaign",
-        "enter_campaign_mode", "exit_to_lobby", "switch_campaign",
-        "create_character_quick", "create_character_draft",
-        "update_character_draft", "show_character_draft",
-        "commit_character_draft", "cancel_character_draft",
-        "create_npc_quick",
-        "save_campaign_setting", "create_setting_draft",
-        "show_setting_drafts", "publish_setting_drafts", "discard_setting_drafts",
-        "list_setting_drafts", "validate_settings",
-        "bind_character", "show_bindings",
-        "export_character_sheet", "export_and_send", "read_attachment",
-        "spell_search", "memory_search",
-        "complete_character_sheet", "generate_cards_from_settings",
-        "generate_npc_set", "generate_setting", "generate_content",
-        "execute_plan", "check_background_tasks",
-        "list_agent_jobs", "get_agent_job_result",
-        "accept_agent_artifact", "reject_agent_artifact",
-        "list_campaign_settings", "get_campaign_setting",
-        "randomize_character_draft",
-    }
-
     allowed: set[str] = set(always_available)
     if is_dm:
         allowed |= dm_only_commands
     if style == "lobby":
-        # Lobby is the preparation/management workspace.  Keep combat and
-        # turn-consuming mechanics out, but expose all campaign, character,
-        # attachment, content-generation and background-workflow tools.
-        allowed |= lobby_tools
+        # Lobby is deliberately tiny and stateless. With no selected campaign
+        # it only lists, creates, or switches campaigns. Once selected, it also
+        # permits basic character setup and entering DM mode.
+        allowed = {
+            "show_lobby", "create_campaign_simple", "switch_campaign",
+            "save_random_proposal", "confirm_random_proposal",
+            "discard_random_proposal",
+        }
+        if campaign is not None:
+            allowed |= {
+                "status", "enter_campaign_mode", "create_character_quick",
+                "bind_character", "show_bindings", "export_character_sheet",
+            }
         result = [t for t in COMMAND_TOOLS if t["function"]["name"] in allowed and t["function"]["name"] not in slash_only]
-        # Always include lobby tools in lobby mode
-        result.extend(LOBBY_TOOLS)
+        result.extend(t for t in LOBBY_TOOLS if t["function"]["name"] in allowed)
         return result
     if style == "dice_assistant":
         allowed -= {"enter_campaign_edit", "exit_campaign_edit",
