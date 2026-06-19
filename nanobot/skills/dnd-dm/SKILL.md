@@ -73,7 +73,7 @@ metadata:
 加载 `dnd-campaign-manager` Skill 执行：
 
 - 创建、列出、选择、归档战役；
-- 创建不可覆盖的完整 Snapshot；
+- **创建新战役后必须立即创建初始 Snapshot**（槽位 1，标签 "初始状态"）；
 - 按 `campaign_id + slot` 列表、校验和恢复；
 - 撤销已审计的状态变化；
 - 同步 `USER.md` 中当前战役的玩家—角色区块。
@@ -81,17 +81,28 @@ metadata:
 恢复 Snapshot 只替换目标战役当前状态，不删除历史 Snapshot 与审计记录。禁止把一个
 战役的 Snapshot 当作另一个战役的普通读档；复制战役必须走独立的克隆流程。
 
-## SRD 本地检索
+## 数据库规则检索
 
-规则正文位于 `srd/references/`。需要精确规则时使用：
+先按当前战役的规则配置锁定版本与启用规则书，再执行精确名称、FTS5/PostgreSQL 全文和
+BGE-M3 Dense Vector 混合检索：
+
+优先调用常驻的 `dnd_rules` 工具，避免每次查询重新载入 BGE-M3：
+
+- `action=search`：传入 `campaign_id`、`query` 和 `top_k`。
+- `action=expand`：传入搜索结果的 `chunk_id` 和 `expand_mode=section`。
+- `action=status`：检查当前索引是否存在且已有向量。
+
+只有在工具不可用或进行人工维护时才使用 JSON CLI：
 
 ```powershell
-python nanobot/skills/dnd-dm/srd/scripts/search_with_positions.py "关键词" --all
-python nanobot/skills/dnd-dm/srd/scripts/expand_context.py "关键词" --result 1 --mode section --all
+python -m nanobot.dnd.db.cli rules search --campaign <campaign-id> --query "关键词" --top-k 5
+python -m nanobot.dnd.db.cli rules expand --chunk <chunk-id> --mode section
 ```
 
-优先引用命中的 SRD 原文范围，不凭印象补造规则。模组设定不能覆盖基础机械规则，除非
-模组明确声明特例。
+明确的法术、状态或物品名称优先使用精确结果；自然语言问题使用 Dense 召回。常见中文
+D&D 术语会追加对应英文 SRD 术语，但精确检索仍使用原始名称。命中后按
+段落或章节展开，并引用返回的规则版本、规则书、标题路径和字符范围。不得跨规则版本
+搜索后让模型自行判断版本。
 
 ## 上下文加载
 
@@ -118,4 +129,3 @@ python nanobot/skills/dnd-dm/srd/scripts/expand_context.py "关键词" --result 
 - 不在未经授权时推进剧情、掷骰或改变玩家状态。
 
 当模组事实、规则和玩家陈述冲突时，先说明冲突并请求澄清；不要静默猜测。
-

@@ -7,6 +7,13 @@
 .web
 .orion
 
+# Local QQ + NapCat runtime
+localqq/
+
+# External references (but not project skill references)
+references/
+!nanobot/skills/dnd-dm/references/
+
 # Claude / AI assistant artifacts
 docs/superpowers/
 docs/plans/

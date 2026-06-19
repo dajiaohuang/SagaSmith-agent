@@ -23,7 +23,15 @@
 ### 1.3 新战役
 
 先确定战役名称、模组来源、规则版本及初始队伍或建卡计划。创建独立 `campaign_id`，
-初始化世界、队伍与剧情摘要。不要复用另一战役当前状态；以旧战役为模板必须走克隆流程。
+初始化世界、队伍与剧情摘要。不得复用另一战役当前状态；以旧战役为模板必须走克隆流程。
+
+**创建新战役后必须立即创建初始 Snapshot（槽位 1，标签 "初始状态"），作为本次开团的
+第一个恢复点。后续每个章节节点、升级、关键战斗前后再创建新槽位。**
+
+```powershell
+python -m nanobot.dnd.db.cli campaign create --name "战役名" --module "模组名"
+python -m nanobot.dnd.db.cli save create --campaign <campaign-id> --label "初始状态" --workspace "<workspace>"
+```
 
 ## 2. 数据权威与一致性
 

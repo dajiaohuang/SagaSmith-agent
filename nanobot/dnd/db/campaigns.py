@@ -8,7 +8,16 @@ from dataclasses import dataclass
 from sqlalchemy import select
 
 from nanobot.dnd.db.database import Database
-from nanobot.dnd.db.models import Campaign, Party, PlotSummary, WorldState
+from nanobot.dnd.db.models import (
+    Campaign,
+    CampaignRuleProfile,
+    CampaignRulePublication,
+    Party,
+    PlotSummary,
+    RulePublication,
+    RuleSet,
+    WorldState,
+)
 
 
 class CampaignError(RuntimeError):
@@ -21,6 +30,9 @@ class CampaignAlreadyExistsError(CampaignError):
 
 class CampaignNotFoundError(CampaignError):
     """The requested campaign does not exist."""
+
+
+_DEFAULT_RULE_SET_ID = "dnd5e-2024-srd-5.2.1"
 
 
 @dataclass(frozen=True)
@@ -92,6 +104,45 @@ class CampaignService:
                     summary="",
                 )
             )
+            # A newly created campaign starts on the active core rules release
+            # when a corpus is installed. Supplements remain an explicit choice.
+            rule_set = session.get(RuleSet, _DEFAULT_RULE_SET_ID)
+            if rule_set is None or rule_set.status != "active":
+                rule_set = session.scalar(
+                    select(RuleSet)
+                    .where(RuleSet.status == "active")
+                    .order_by(RuleSet.created_at.desc(), RuleSet.id)
+                    .limit(1)
+                )
+            if rule_set is not None:
+                profile_id = f"rule_profile_{uuid.uuid4().hex}"
+                session.add(
+                    CampaignRuleProfile(
+                        id=profile_id,
+                        campaign_id=campaign_id,
+                        rule_set_id=rule_set.id,
+                        locale=rule_set.locale,
+                    )
+                )
+                core_publications = session.scalars(
+                    select(RulePublication)
+                    .where(
+                        RulePublication.rule_set_id == rule_set.id,
+                        RulePublication.publication_type == "core",
+                        RulePublication.parent_publication_id.is_(None),
+                    )
+                    .order_by(RulePublication.priority.desc(), RulePublication.id)
+                )
+                for publication in core_publications:
+                    session.add(
+                        CampaignRulePublication(
+                            id=f"rule_profile_publication_{uuid.uuid4().hex}",
+                            profile_id=profile_id,
+                            publication_id=publication.id,
+                            enabled=True,
+                            priority=publication.priority,
+                        )
+                    )
             return self._info(campaign)
 
     def list(self, *, status: str | None = None) -> list[CampaignInfo]:

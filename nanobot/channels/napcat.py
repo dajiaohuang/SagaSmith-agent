@@ -78,6 +78,45 @@ class NapcatChannel(BaseChannel):
         self._bot_outbound_ids: deque[int] = deque(maxlen=2000)
         self._background_tasks: set[asyncio.Task[None]] = set()
 
+    async def _handle_message(
+        self,
+        sender_id: str,
+        chat_id: str,
+        content: str,
+        media: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
+        session_key: str | None = None,
+        is_dm: bool = False,
+    ) -> None:
+        """Only enforce allowFrom for private messages; groups use groupPolicy."""
+        meta = metadata or {}
+        is_group = bool(meta.get("is_group"))
+        if not is_group and not self.is_allowed(sender_id):
+            self.logger.warning(
+                "Access denied for sender {}. Add them to allowFrom for private access.",
+                sender_id,
+            )
+            return
+        await super()._handle_message(
+            sender_id=sender_id,
+            chat_id=chat_id,
+            content=content,
+            media=media,
+            metadata=metadata,
+            session_key=session_key,
+            is_dm=is_dm,
+        )
+
+    def is_allowed(self, sender_id: str) -> bool:
+        """Skip allowFrom for group messages; groupPolicy handles that."""
+        # Base class check — if already allowed, done.
+        if super().is_allowed(sender_id):
+            return True
+        # For this channel, don't silently drop group messages just because
+        # the sender isn't in allowFrom.  The group reply policy (mention /
+        # open / probability) is the intended group access control.
+        return True
+
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------

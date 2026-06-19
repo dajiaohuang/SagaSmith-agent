@@ -38,6 +38,20 @@ Create only after the user asks to start a new campaign:
 python -m nanobot.dnd.db.cli campaign create --name "战役名称" --module "模组名称"
 ```
 
+**创建战役后必须立即创建初始 Snapshot**，作为第一个恢复点：
+
+```powershell
+python -m nanobot.dnd.db.cli save create --campaign <campaign-id> --label "初始状态" --workspace "<workspace>"
+```
+
+If a rules corpus is already installed, creation automatically pins the active
+core rules release. For a campaign created before rules were indexed, bind it
+once before adjudication:
+
+```powershell
+python -m nanobot.dnd.db.cli rules bind --campaign <campaign-id>
+```
+
 Inspect or archive:
 
 ```powershell

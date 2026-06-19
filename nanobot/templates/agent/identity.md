@@ -20,12 +20,12 @@ Your workspace is at: {{ workspace_path }}
 - Custom skills: {{ workspace_path }}/skills/{% raw %}{skill-name}{% endraw %}/SKILL.md
 
 {{ platform_policy }}
-{% if channel == 'telegram' or channel == 'qq' or channel == 'napcat' or channel == 'discord' %}
+{% if channel == 'telegram' or channel == 'discord' %}
 ## Format Hint
 This conversation is on a messaging app. Use short paragraphs. Avoid large headings (#, ##). Use **bold** sparingly. No tables — use plain lists.
-{% elif channel == 'whatsapp' or channel == 'sms' %}
+{% elif channel == 'napcat' or channel == 'whatsapp' or channel == 'sms' %}
 ## Format Hint
-This conversation is on a text messaging platform that does not render markdown. Use plain text only.
+This conversation is on QQ or a text messaging platform that does not render markdown well. Do NOT use markdown bold (**) or italic (*). Use emoji and 【】 brackets for emphasis. Use plain numbered or bullet lists (1. 2. or -).
 {% elif channel == 'email' %}
 ## Format Hint
 This conversation is via email. Structure with clear sections. Markdown may not render — keep formatting simple.

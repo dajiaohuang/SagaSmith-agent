@@ -9,16 +9,30 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
+from sqlalchemy import func, select
+
 from nanobot.dnd.db.campaigns import CampaignService
 from nanobot.dnd.db.database import Database
-from nanobot.dnd.db.models import Campaign
+from nanobot.dnd.db.models import (
+    Campaign,
+    EmbeddingModel,
+    RuleChunk,
+    RulePublication,
+    RuleSection,
+    RuleSet,
+    RuleSource,
+)
 from nanobot.dnd.db.snapshots import CampaignSnapshotService
 from nanobot.dnd.db.undo import UndoManager
 from nanobot.dnd.db.user_context import read_player_roles, write_player_roles
+from nanobot.dnd.rules.ingest import RuleIngestService
+from nanobot.dnd.rules.search import RuleSearchService
 
 
 def _emit(value: Any) -> None:
-    print(json.dumps(value, ensure_ascii=False, indent=2, default=str))
+    # ASCII-safe JSON keeps the CLI reliable under the legacy Windows console
+    # code pages commonly used to launch NanoBot. JSON consumers recover Unicode.
+    print(json.dumps(value, ensure_ascii=True, indent=2, default=str))
 
 
 def _sync_user_to_database(database: Database, campaign_id: str, workspace: str) -> None:
@@ -86,6 +100,37 @@ def _parser() -> argparse.ArgumentParser:
     undo.add_argument("--count", type=int, default=1)
     undo.add_argument("--actor")
     undo.add_argument("--workspace")
+
+    rules = commands.add_parser("rules")
+    rule_commands = rules.add_subparsers(dest="action", required=True)
+    ingest = rule_commands.add_parser("ingest-srd")
+    ingest.add_argument("--references-dir")
+    ingest.add_argument("--no-embed", action="store_true")
+    ingest.add_argument("--force", action="store_true")
+    bind = rule_commands.add_parser("bind")
+    bind.add_argument("--campaign", required=True)
+    bind.add_argument("--rule-set", default="dnd5e-2024-srd-5.2.1")
+    bind.add_argument("--publication", action="append")
+    search = rule_commands.add_parser("search")
+    search.add_argument("--query", required=True)
+    search.add_argument("--campaign")
+    search.add_argument("--rule-set")
+    search.add_argument("--publication", action="append")
+    search.add_argument("--top-k", type=int, default=5)
+    search.add_argument("--no-dense", action="store_true")
+    search.add_argument(
+        "--expand",
+        choices=("chunk", "paragraph", "section", "section-with-children"),
+    )
+    expand = rule_commands.add_parser("expand")
+    expand.add_argument("--chunk", required=True)
+    expand.add_argument(
+        "--mode",
+        choices=("chunk", "paragraph", "section", "section-with-children"),
+        default="section",
+    )
+    rule_commands.add_parser("tree")
+    rule_commands.add_parser("status")
     return parser
 
 
@@ -148,7 +193,7 @@ def main(argv: list[str] | None = None) -> int:
                     else None
                 )
                 _emit({**asdict(result), "user_md": user_file})
-        else:
+        elif args.area == "undo":
             result = UndoManager(database).undo(
                 args.campaign, count=args.count, actor_id=args.actor
             )
@@ -158,6 +203,130 @@ def main(argv: list[str] | None = None) -> int:
                 else None
             )
             _emit({**asdict(result), "count": result.count, "user_md": user_file})
+        else:
+            ingest_service = RuleIngestService(database)
+            search_service = RuleSearchService(database)
+            if args.action == "ingest-srd":
+                references_dir = args.references_dir or str(
+                    Path(__file__).parents[2]
+                    / "skills"
+                    / "dnd-dm"
+                    / "srd"
+                    / "references"
+                )
+                _emit(
+                    asdict(
+                        ingest_service.ingest_srd(
+                            references_dir,
+                            embed=not args.no_embed,
+                            force=args.force,
+                        )
+                    )
+                )
+            elif args.action == "bind":
+                profile_id = ingest_service.bind_campaign(
+                    args.campaign,
+                    rule_set_id=args.rule_set,
+                    publication_ids=args.publication,
+                )
+                _emit({"campaign_id": args.campaign, "profile_id": profile_id})
+            elif args.action == "search":
+                hits = search_service.search(
+                    args.query,
+                    campaign_id=args.campaign,
+                    rule_set_id=args.rule_set,
+                    publication_ids=args.publication,
+                    top_k=args.top_k,
+                    dense=not args.no_dense,
+                )
+                payload: dict[str, Any] = {"query": args.query, "hits": [asdict(hit) for hit in hits]}
+                if args.expand and hits:
+                    payload["expanded"] = search_service.expand(
+                        hits[0].chunk_id, mode=args.expand
+                    )
+                _emit(payload)
+            elif args.action == "expand":
+                _emit(search_service.expand(args.chunk, mode=args.mode))
+            elif args.action == "tree":
+                with database.transaction() as session:
+                    tree = []
+                    for rule_set in session.scalars(
+                        select(RuleSet).order_by(RuleSet.game_system, RuleSet.edition)
+                    ):
+                        publications = []
+                        for publication in session.scalars(
+                            select(RulePublication)
+                            .where(RulePublication.rule_set_id == rule_set.id)
+                            .order_by(RulePublication.priority.desc(), RulePublication.name)
+                        ):
+                            section_count = session.scalar(
+                                select(func.count())
+                                .select_from(RuleSection)
+                                .where(RuleSection.publication_id == publication.id)
+                            )
+                            top_level_sections = list(
+                                dict.fromkeys(
+                                    session.scalars(
+                                        select(RuleSection.title)
+                                        .where(
+                                            RuleSection.publication_id == publication.id,
+                                            RuleSection.depth == 1,
+                                            ~RuleSection.title.like("Page %"),
+                                        )
+                                        .order_by(RuleSection.source_id, RuleSection.order_index)
+                                    )
+                                )
+                            )
+                            publications.append(
+                                {
+                                    "id": publication.id,
+                                    "name": publication.name,
+                                    "type": publication.publication_type,
+                                    "parent_publication_id": publication.parent_publication_id,
+                                    "sections": int(section_count or 0),
+                                    "top_level_sections": top_level_sections,
+                                }
+                            )
+                        tree.append(
+                            {
+                                "id": rule_set.id,
+                                "game_system": rule_set.game_system,
+                                "edition": rule_set.edition,
+                                "release": rule_set.release,
+                                "locale": rule_set.locale,
+                                "publications": publications,
+                            }
+                        )
+                _emit({"rule_sets": tree})
+            else:
+                with database.transaction() as session:
+                    def count(model, *conditions) -> int:
+                        statement = select(func.count()).select_from(model)
+                        if conditions:
+                            statement = statement.where(*conditions)
+                        return int(session.scalar(statement) or 0)
+
+                    _emit(
+                        {
+                            "rule_sets": count(RuleSet),
+                            "publications": count(RulePublication),
+                            "sources": count(RuleSource),
+                            "sections": count(RuleSection),
+                            "chunks": count(RuleChunk),
+                            "embedded_chunks": count(
+                                RuleChunk, RuleChunk.embedding_json.is_not(None)
+                            ),
+                            "embedding_models": [
+                                {
+                                    "id": model.id,
+                                    "model_name": model.model_name,
+                                    "dimensions": model.dimensions,
+                                    "active": model.is_active,
+                                }
+                                for model in session.scalars(select(EmbeddingModel))
+                            ],
+                        }
+                    )
         return 0
     except Exception as exc:
         _emit({"error": type(exc).__name__, "message": str(exc)})
