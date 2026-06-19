@@ -197,6 +197,23 @@ class UndoManager:
     def _restore_revision(
         self, session: Session, revision: StateRevision
     ) -> tuple[dict[str, Any], int]:
+        if revision.aggregate_type == "campaign_snapshot":
+            from nanobot.dnd.db.snapshots import CampaignSnapshotService
+
+            current = CampaignSnapshotService.capture_from_session(
+                session, revision.campaign_id
+            )
+            CampaignSnapshotService.restore_in_session(
+                session,
+                dict(revision.before_state_json or {}),
+                expected_campaign_id=revision.campaign_id,
+            )
+            next_version = CampaignSnapshotService.next_revision_version(
+                session, revision.campaign_id
+            )
+            session.flush()
+            return current, next_version
+
         aggregate = self._find_aggregate(session, revision)
         payload = dict(revision.before_state_json or {})
         state_attribute = "sheet_json" if isinstance(aggregate, Character) else "state_json"

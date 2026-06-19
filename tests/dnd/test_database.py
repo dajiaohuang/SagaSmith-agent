@@ -65,7 +65,7 @@ def test_migration_creates_v2_domain_schema_without_legacy_mode_tables(
     assert "lobby_session_states" not in tables
     assert "task_sessions" not in tables
     assert "agent_jobs" not in tables
-    assert current_revision(database.url) == "20260619_01"
+    assert current_revision(database.url) == "20260619_02"
 
 
 def test_skill_aggregate_state_round_trip(database: Database) -> None:

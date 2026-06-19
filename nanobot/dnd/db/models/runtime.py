@@ -46,7 +46,12 @@ class CampaignSave(TimestampMixin, Base):
     chapter: Mapped[str] = mapped_column(String, default="")
     location: Mapped[str] = mapped_column(String, default="")
     snapshot_json: Mapped[dict[str, Any]] = mapped_column(JSON)
-    schema_version: Mapped[int] = mapped_column(Integer, default=1)
+    snapshot_format: Mapped[str] = mapped_column(
+        String, default="dnd-campaign-snapshot"
+    )
+    snapshot_hash: Mapped[str] = mapped_column(String, default="")
+    created_by: Mapped[str | None] = mapped_column(String, index=True)
+    schema_version: Mapped[int] = mapped_column(Integer, default=2)
     state_version: Mapped[int] = mapped_column(Integer, default=1)
 
 
