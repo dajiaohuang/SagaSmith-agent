@@ -66,11 +66,13 @@ QQ 通过 NapCat (OneBot v11 Forward WebSocket) 接入。
 
 **启动：**
 
+**推荐：双击 `scripts\start-quick.bat`**（免扫码 + GPU 模式），或：
+
 ```powershell
-# 完整启动（NapCat QQ + gateway）
+# PowerShell 完整启动（NapCat QQ + gateway）
 .\scripts\start-all.ps1
 
-# 免扫码快速启动（已登录过）
+# 免扫码快速启动
 .\scripts\start-all.ps1 -Quick
 
 # 仅 gateway，不动 QQ
@@ -80,11 +82,33 @@ QQ 通过 NapCat (OneBot v11 Forward WebSocket) 接入。
 .\scripts\start-all.ps1 -CpuOnly
 ```
 
+如果 PowerShell 执行策略受限，用等价的 .bat：
+
+```bat
+REM 完整启动（需要扫码）
+scripts\start-all.bat
+
+REM 免扫码快速启动（已登录过 QQ）
+scripts\start-all.bat /Quick
+
+REM 仅 gateway + GPU
+scripts\start-quick.bat
+
+REM 仅 gateway，不动 QQ
+scripts\start-all.bat /NoQQ
+
+REM CPU 模式
+scripts\start-all.bat /CpuOnly
+
+REM 重启 gateway
+scripts\start-all.bat /RestartGateway
+```
+
 或手动分步：
 ```powershell
-localqq\start.ps1                              # 启动 NapCat + QQ
-localqq\start-quick.ps1                        # 免扫码快速版
-$env:DND_EMBEDDING_DEVICE="cuda"; nanobot gateway     # 启动 gateway
+localqq\start.ps1                                    # 启动 NapCat + QQ（扫码）
+localqq\start-quick.ps1                              # 免扫码快速版
+$env:DND_EMBEDDING_DEVICE="cuda"; nanobot gateway    # 启动 gateway
 ```
 
 **nanobot 配置：**
