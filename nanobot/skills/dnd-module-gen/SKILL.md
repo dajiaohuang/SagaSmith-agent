@@ -105,11 +105,12 @@ Generate the complete module in one pass.
 ## 主要 NPC (want/fear/secret) | 伏笔-回收表 | 怪物 | 魔法物品
 ```
 
-After writing the file, import:
+After writing the file, import and export scene index:
 
 ```
 dnd_module action=import campaign_id=<id> module_name="<name>" source_path="<workspace>/modules/<name>.md"
 dnd_module action=index campaign_id=<id>
+python -m nanobot.dnd.db.cli module export-scenes --campaign <id> --output "<workspace>/modules/<name>_scenes.json"
 ```
 
 ---
@@ -183,7 +184,7 @@ Generate Ch.4-5. Then assemble the complete module file:
 - Ch.4-5 (newly generated)
 - 附录 (NPC, 伏笔-回收表, 势力变化, 怪物, 魔法物品)
 
-Import and index.
+Import, index, and export scene index (see Import section).
 
 ---
 
@@ -241,7 +242,7 @@ Generate: NPC appendix (含 arc), 伏笔-回收表 (8 章完整链), 势力变�
 
 ### Step L5 — 组装
 
-Combine all parts into `<workspace>/modules/<name>.md`. Import and index.
+Combine all parts into `<workspace>/modules/<name>.md`. Import, index, and export scene index (see Import section).
 
 ---
 
@@ -282,18 +283,34 @@ For each region, user says "生成区域X" or "all regions":
 ## 地点 (3-6 key locations with #### room headings)
 ```
 
-After all regions: import and index.
+After all regions: import, index, and export scene index (see Import section).
 
 ---
 
-## Import
+## Import & Scene Index
+
+After the module file is complete:
 
 ```
+# 1. Import into database
 dnd_module action=import campaign_id=<id> module_name="<name>" source_path="<workspace>/modules/<name>.md"
+
+# 2. Verify structure
 dnd_module action=index campaign_id=<id>
+
+# 3. Export scene index JSON (saved alongside the .md file)
+python -m nanobot.dnd.db.cli module export-scenes --campaign <id> --output "<workspace>/modules/<name>_scenes.json"
 ```
 
-Report chapter/scene/chunk counts. If module already exists, ask user before deleting and re-importing.
+The `_scenes.json` file mirrors the structure of `references/dnd-dm-skill/srd/scenes_index.json`:
+- Scene boundaries with line numbers
+- Keywords/tags per scene
+- Room-type annotations
+- Sub-section headings
+
+This gives the DM a human-readable scene map they can reference without querying the database.
+
+Report chapter/scene/chunk counts after import. If module already exists, ask user before deleting and re-importing.
 
 ---
 
