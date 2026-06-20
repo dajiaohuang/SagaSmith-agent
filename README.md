@@ -17,7 +17,7 @@ SagaSmith Agent is a complete, runnable AI DM system. Connect QQ (NapCat), Teleg
 |------|------|
 | 🎲 **SagaSmith-agent** (this repo) | Full AI DM runtime |
 | 📦 [SagaSmith-skill](https://github.com/dajiaohuang/SagaSmith-skill) | Cross-platform skill pack (NanoBot / OpenClaw / Hermes) |
-| ✍️ [SagaSmith-modulegen](https://github.com/dajiaohuang/SagaSmith-modulegen) | Standalone module generator (pure Markdown skill) |
+| ✍️ [SagaSmith-module-gen-skill](https://github.com/dajiaohuang/SagaSmith-module-gen-skill) | Standalone module generator (pure Markdown skill) |
 
 ---
 
