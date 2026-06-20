@@ -25,7 +25,7 @@ function Show-QR {
     # Check if QR already exists
     $existing = Get-ChildItem $cacheDir -Filter "*.png" -ErrorAction SilentlyContinue |
         Sort-Object LastWriteTime -Descending |
-        Where-Object { $_.Length -gt 1024 } |
+        Where-Object { $_.Length -gt 256 } |
         Select-Object -First 1
     if ($existing) {
         Write-Host ""
