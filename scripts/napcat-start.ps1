@@ -6,9 +6,9 @@ $ErrorActionPreference = "Continue"
 $Base = $PSScriptRoot
 Set-Location (Split-Path $Base)
 
-$LocalQQ = Join-Path (Get-Location) "localqq"
+$LocalQQ = Join-Path (Get-Location) "napcat_localqq"
 if (-not (Test-Path $LocalQQ)) {
-    Write-Host "[!] localqq not found. Run setup-napcat.ps1 first." -ForegroundColor Red
+    Write-Host "[!] napcat_localqq not found. Run setup-napcat.ps1 first." -ForegroundColor Red
     exit 1
 }
 
@@ -25,7 +25,12 @@ function Show-QR {
         Where-Object { $_.Length -gt 1024 } |
         Select-Object -First 1
     if ($existing) {
-        Write-Host "[OK] QR found: $($existing.Name)" -ForegroundColor Green
+        Write-Host ""
+        Write-Host "============================================" -ForegroundColor Cyan
+        Write-Host "  QR code ready - scan with QQ on your phone" -ForegroundColor White
+        Write-Host "  $($existing.FullName)" -ForegroundColor DarkGray
+        Write-Host "============================================" -ForegroundColor Cyan
+        Write-Host ""
         Start-Process $existing.FullName
         return
     }
@@ -46,7 +51,12 @@ function Show-QR {
             )
         } | Select-Object -First 1
         if ($qr) {
-            Write-Host "[OK] QR: $($qr.Name)" -ForegroundColor Green
+            Write-Host ""
+            Write-Host "============================================" -ForegroundColor Cyan
+            Write-Host "  QR code - scan with QQ on your phone" -ForegroundColor White
+            Write-Host "  $($qr.FullName)" -ForegroundColor DarkGray
+            Write-Host "============================================" -ForegroundColor Cyan
+            Write-Host ""
             Start-Process $qr.FullName
             return
         }
@@ -66,7 +76,7 @@ if (-not (Test-Path $QQExe)) {
 }
 
 $QQRunning = Get-Process -Name "QQ" -ErrorAction SilentlyContinue |
-    Where-Object { $_.Path -like "*localqq*" }
+    Where-Object { $_.Path -like "*napcat_localqq*" }
 
 if (-not $QQRunning) {
     Write-Host "[..] Starting QQ..." -ForegroundColor Yellow

@@ -106,8 +106,8 @@ scripts\start-all.bat /RestartGateway
 
 或手动分步：
 ```powershell
-localqq\start.ps1                                    # 启动 NapCat + QQ（扫码）
-localqq\start-quick.ps1                              # 免扫码快速版
+napcat_localqq\start.ps1                                    # 启动 NapCat + QQ（扫码）
+napcat_localqq\start-quick.ps1                              # 免扫码快速版
 $env:DND_EMBEDDING_DEVICE="cuda"; nanobot gateway    # 启动 gateway
 ```
 
@@ -254,7 +254,7 @@ DM_agent/
 │   ├── dnd/                  # D&D 适配层 (rules · db · engine · modules)
 │   ├── skills/               # dnd-dm · dnd-campaign-manager · napcat-qq
 │   └── templates/            # 系统提示模板 (identity · SOUL · platform_policy)
-├── localqq/                  # NapCat + 便携 QQ 运行时 (.gitignore)
+├── napcat_localqq/                  # NapCat + 便携 QQ 运行时 (.gitignore)
 ├── scripts/                  # 安装与启动脚本
 │   ├── setup-napcat.ps1      # 一键安装 NapCat
 │   └── start-all.ps1         # 一键启动

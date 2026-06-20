@@ -14,7 +14,7 @@ Write-Host "=== dnd-dm-agent ===" -ForegroundColor Cyan
 
 # ---------- NapCat QQ ----------
 if (-not $NoQQ) {
-    $LocalQQ = Join-Path $RepoRoot "localqq"
+    $LocalQQ = Join-Path $RepoRoot "napcat_localqq"
     $StartBat = Join-Path $LocalQQ "start.bat"
 
     if (-not (Test-Path $StartBat)) {
@@ -24,7 +24,7 @@ if (-not $NoQQ) {
     }
 
     $QQRunning = Get-Process -Name "QQ" -ErrorAction SilentlyContinue |
-        Where-Object { $_.Path -like "*localqq*" }
+        Where-Object { $_.Path -like "*napcat_localqq*" }
 
     if (-not $QQRunning) {
         if ($Quick) {

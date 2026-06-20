@@ -8,7 +8,7 @@
 .orion
 
 # Local QQ + NapCat runtime
-localqq/
+napcat_localqq/
 
 # External references (but not project skill references)
 references/

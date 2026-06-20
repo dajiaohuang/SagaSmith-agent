@@ -8,7 +8,7 @@
 - ✅ **NapCat QQ**: `ws://127.0.0.1:3001` — 便携 QQ v9.9.26-44498，已登录 `1534055688` (tc130精神扰乱装置)
 
 ### NapCat QQ 集成
-- NapCat 运行时内置在 `localqq/`（不入 git）
+- NapCat 运行时内置在 `napcat_localqq/`（不入 git）
 - 安装脚本: `scripts/setup-napcat.ps1`（自动下载 + 配置）
 - 启动脚本: `scripts/start-all.ps1`（`-Quick` 免扫码，`-NoQQ` 仅 gateway，`-CpuOnly` CPU 模式）
 - 修复: `nanobot/channels/napcat.py` 覆写 `_handle_message`，群聊不经过 `allowFrom` 过滤
@@ -37,7 +37,7 @@ idleCompactAfterMin:  15 → 5
 - 英文 SRD 5.2.1: 20 sources / 2,763 sections / 2,684 chunks (BGE-M3 GPU)
 - 中文 SRD 5.1: 8 sources / 1,944 sections / 1,864 chunks (BGE-M3 GPU)
 - 新增 `ingest_directory_srd()` 方法 + CLI `rules ingest-zh-cn` 命令
-- 中文 SRD 按类别合并（`localqq/../references/DND.SRD.zh-CN/merged/`）
+- 中文 SRD 按类别合并（`napcat_localqq/../references/DND.SRD.zh-CN/merged/`）
 
 ### 战役管理
 - `DM_RULES.md` §1.3: 创建新战役后必须立即创建初始 Snapshot
@@ -66,7 +66,7 @@ idleCompactAfterMin:  15 → 5
 | 文件 | 用途 |
 |------|------|
 | `~/.nanobot/config.json` | nanobot 主配置 |
-| `localqq/` | NapCat + 便携 QQ（.gitignore） |
+| `napcat_localqq/` | NapCat + 便携 QQ（.gitignore） |
 | `scripts/setup-napcat.ps1` | 一键安装 NapCat |
 | `scripts/start-all.ps1` | 一键启动 |
 | `nanobot/channels/napcat.py` | QQ 渠道（含群聊权限修复） |

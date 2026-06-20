@@ -38,7 +38,7 @@ if %NOQQ%==1 (
     goto gateway
 )
 
-if not exist "localqq\NapCat.44498.Shell\QQ.exe" (
+if not exist "napcat_localqq\NapCat.44498.Shell\QQ.exe" (
     echo [!] QQ.exe not found
     echo     Run: powershell -File scripts\setup-napcat.ps1
     echo     Or skip: start-all.bat /NoQQ
@@ -47,10 +47,10 @@ if not exist "localqq\NapCat.44498.Shell\QQ.exe" (
 
 if %NOQR%==1 (
     echo [..] Starting NapCat QQ (no QR)...
-    start "NapCat-QQ" /min powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\napcat-start.ps1" -NoQR
+    start "NapCat-QQ" powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\napcat-start.ps1" -NoQR
 ) else (
     echo [..] Starting NapCat QQ (QR will auto-open)...
-    start "NapCat-QQ" /min powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\napcat-start.ps1"
+    start "NapCat-QQ" powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\napcat-start.ps1"
 )
 
 :: ---------- nanobot gateway ----------

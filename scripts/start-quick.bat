@@ -18,14 +18,14 @@ echo   First time? Use start-all.bat to scan QR.
 echo.
 
 :: ---------- NapCat QQ ----------
-if not exist "localqq\NapCat.44498.Shell\QQ.exe" (
+if not exist "napcat_localqq\NapCat.44498.Shell\QQ.exe" (
     echo [!] QQ.exe not found
     echo     Run: powershell -File scripts\setup-napcat.ps1
     goto gateway
 )
 
 echo [..] Starting NapCat QQ (saved login)...
-start "NapCat-QQ" /min powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\napcat-start.ps1" -NoQR
+start "NapCat-QQ" powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\napcat-start.ps1" -NoQR
 
 :: ---------- nanobot gateway ----------
 :gateway
