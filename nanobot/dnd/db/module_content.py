@@ -290,7 +290,45 @@ def _scenes(lines: list[str]) -> list[dict[str, object]]:
                 "keywords": _tags(title),
             }
         )
-    return scenes
+
+    # Merge adjacent empty scenes (same bilingual-split fix as _parse_scene_index)
+    _CJK_RANGE2 = (("一", "鿿"), ("㐀", "䶿"), ("豈", "﫿"))
+
+    def _has_cjk2(text: str) -> bool:
+        return any(lo <= c <= hi for lo, hi in _CJK_RANGE2 for c in text)
+
+    def _has_ascii2(text: str) -> bool:
+        return bool(re.search(r"[A-Za-z]{2,}", text))
+
+    merged_scenes: list[dict[str, object]] = []
+    j = 0
+    while j < len(scenes):
+        scene = scenes[j]
+        content_lines = int(scene["end_line"]) - int(scene["start_line"])
+        if content_lines <= 1 and j + 1 < len(scenes):
+            nxt = scenes[j + 1]
+            cur_cjk2 = _has_cjk2(str(scene["title"]))
+            cur_asc2 = _has_ascii2(str(scene["title"]))
+            nxt_cjk2 = _has_cjk2(str(nxt["title"]))
+            nxt_asc2 = _has_ascii2(str(nxt["title"]))
+            if (cur_cjk2 and not cur_asc2 and nxt_asc2 and not nxt_cjk2) or (
+                cur_asc2 and not cur_cjk2 and nxt_cjk2 and not nxt_asc2
+            ):
+                nxt["title"] = str(scene["title"]) + " " + str(nxt["title"])
+                nxt["start_line"] = scene["start_line"]
+                nxt["headings"] = list(scene["headings"]) + list(nxt["headings"])
+                nxt["keywords"] = list(
+                    dict.fromkeys(
+                        cast(list[str], scene.get("keywords", []))
+                        + cast(list[str], nxt.get("keywords", []))
+                    )
+                )
+                j += 1
+                scene = nxt
+        merged_scenes.append(scene)
+        j += 1
+
+    return merged_scenes
 
 
 def _parse_scene_index(lines: list[str]) -> list[dict[str, object]]:
@@ -365,7 +403,66 @@ def _parse_scene_index(lines: list[str]) -> list[dict[str, object]]:
     for scene in scenes:
         scene["line_count"] = int(scene["end_line"]) - int(scene["start_line"]) + 1
 
-    return scenes
+    # ---- merge adjacent heading-only scenes (PDF bilingual split fix) ----
+    # The PDF parser sometimes emits ``## Chinese`` / ``## English`` as two
+    # consecutive headings with no body content in between.  Those produce
+    # scenes with line_count ≤ 2 (heading + blank line).  Merge them into the
+    # following scene so the result matches the single-heading expectation.
+    _CJK_RANGE = (
+        ("一", "鿿"),
+        ("㐀", "䶿"),
+        ("豈", "﫿"),
+    )
+
+    def _has_cjk(text: str) -> bool:
+        return any(lo <= c <= hi for lo, hi in _CJK_RANGE for c in text)
+
+    def _has_ascii_alpha(text: str) -> bool:
+        return bool(re.search(r"[A-Za-z]{2,}", text))
+
+    merged: list[dict[str, object]] = []
+    i = 0
+    while i < len(scenes):
+        scene = scenes[i]
+        # A scene with line_count ≤ 2 has no body content — only the heading
+        # line and possibly one blank line.  If the next scene exists, fold
+        # this one's title and sub-sections into it.
+        if scene["line_count"] <= 2 and i + 1 < len(scenes):
+            next_scene = scenes[i + 1]
+            # Heuristic: merge only when one is CJK-dominant and the other ASCII
+            # to avoid flattening genuinely distinct short sections.
+            cur_cjk = _has_cjk(str(scene["title"]))
+            cur_asc = _has_ascii_alpha(str(scene["title"]))
+            nxt_cjk = _has_cjk(str(next_scene["title"]))
+            nxt_asc = _has_ascii_alpha(str(next_scene["title"]))
+            complementary = (cur_cjk and not cur_asc and nxt_asc and not nxt_cjk) or (
+                cur_asc and not cur_cjk and nxt_cjk and not nxt_asc
+            )
+            if complementary:
+                next_scene["title"] = (
+                    str(scene["title"]) + " " + str(next_scene["title"])
+                )
+                next_scene["start_line"] = scene["start_line"]
+                # Prepend any sub-sections from the empty heading
+                next_scene["subsections"] = (
+                    list(scene["subsections"]) + list(next_scene["subsections"])
+                )
+                next_scene["line_count"] = (
+                    int(next_scene["end_line"]) - int(next_scene["start_line"]) + 1
+                )
+                # Merge tags
+                next_scene["tags"] = list(
+                    dict.fromkeys(
+                        cast(list[str], scene.get("tags", []))
+                        + cast(list[str], next_scene.get("tags", []))
+                    )
+                )
+                i += 1
+                scene = next_scene
+        merged.append(scene)
+        i += 1
+
+    return merged
 
 
 def _scene_tags(title: str) -> list[str]:
