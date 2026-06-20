@@ -31,16 +31,21 @@ function Show-QR {
         Start-Process $qrFile
     }
 
-    if (Test-Path $qrFile) { _open_qr; return }
+    # Record last write time — a new QR will overwrite with a newer timestamp
+    $lastWrite = (Get-Item $qrFile -ErrorAction SilentlyContinue).LastWriteTime
 
-    Write-Host "[..] Waiting for QR code..." -ForegroundColor Yellow
+    Write-Host "[..] Waiting for new QR code..." -ForegroundColor Yellow
     for ($i = 0; $i -lt $TimeoutSec; $i++) {
-        if (Test-Path $qrFile) { _open_qr; return }
+        $current = Get-Item $qrFile -ErrorAction SilentlyContinue
+        if ($current -and $current.LastWriteTime -ne $lastWrite) {
+            _open_qr
+            return
+        }
         Write-Host "." -NoNewline
         Start-Sleep -Seconds 1
     }
     Write-Host ""
-    Write-Host "[!] QR did not appear. Open:" -ForegroundColor DarkYellow
+    Write-Host "[!] No new QR appeared. Open:" -ForegroundColor DarkYellow
     Write-Host "    $qrFile" -ForegroundColor DarkGray
 }
 
