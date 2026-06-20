@@ -5,268 +5,331 @@ description: Generate D&D 5e adventure modules. Supports one-shot, short (3 chap
 
 # D&D Module Generator
 
-Generate playable D&D 5e modules as Markdown text, then import them into the campaign database.
+## Core Rules
 
-## Step 1: Determine Type
+1. **Always write to file first.** Never inline-import generated content. Write to `<workspace>/modules/<name>.md`, then import from that path via `dnd_module action=import source_path=...`. This preserves the generated module as a reusable artifact.
 
-| Type | Chapters | Sessions | When to Use |
-|------|----------|----------|-------------|
-| **one-shot** | 1 | 1 (3-6h) | tonight's game |
-| **short** | 3 | 3-8 | mini-campaign |
-| **medium** | 5 | 2-4 months | full story arc |
-| **long** | 8 | 6+ months | epic campaign |
-| **sandbox** | 4-6 regions | open | player-driven |
+2. **One-shot and short are one-step generation.** Generate the complete module in a single pass, write to file, import.
 
-Default: short. Ask the user or infer from their request.
+3. **Medium and long are multi-step generation.** Each step produces one section of the module. User reviews each step before proceeding. This avoids context overflow and allows course correction.
 
-## Step 2: Choose Paradigm
+4. **Sandbox generates top-level overview first**, then each region independently.
 
-Each type has a default paradigm; user can override.
+---
+
+## Step 0: Determine Type & Parameters
+
+| Type | Chapters | Sessions | Steps |
+|------|----------|----------|-------|
+| **one-shot** | 1 | 1 (3-6h) | 1 |
+| **short** | 3 | 3-8 | 1 |
+| **medium** | 5 | 2-4 months | 3 |
+| **long** | 8 | 6+ months | 5 |
+| **sandbox** | 4-6 regions | open | 1+N |
+
+Ask the user, or randomize. Tell them:
+
+- 类型 / 范式 / 主题 / 环境 / 反派 / 等级 / 氛围
+- 反转次数 / NPC 深度 / 结局分支 / 种子
+
+### Paradigm Reference
 
 | Type | Default Paradigms | Alternatives |
 |------|-------------------|--------------|
 | one-shot | Five-Room Dungeon, Mystery, Heist | Beat Charts, Reverse Dungeon |
-| short | Three-Act, Kishōtenketsu | Race Against Time, Island Design, Seven-Point |
-| medium | Hero's Journey, Plot Point | Fish Tank Intrigue, Pointcrawl, Faction Turn |
-| long | Double Triangle, Conspyramid | Megadungeon, Technoir Transmission |
+| short | Three-Act, Kishōtenketsu | Race Against Time, Island Design |
+| medium | Hero's Journey, Plot Point | Fish Tank, Pointcrawl, Faction Turn |
+| long | Double Triangle, Conspyramid | Megadungeon, Technoir |
 | sandbox | Hexcrawl, Node-Based | Decision-Based, Blorb, Faction Turn |
 
-### Paradigm Reference
+Full paradigm glossary: see bottom of this skill.
 
-**Space-driven (location as structure):**
-- **Five-Room Dungeon**: entrance guardian → puzzle/RP → trick/setback → climax → reward/revelation. 5 scenes.
-- **Node-Based / Pointcrawl**: nodes (places, NPCs, events) connected by clues/geography/time. Non-linear.
-- **Hexcrawl**: hex grid map, each hex has encounters/locations. Random encounter tables.
-- **Megadungeon**: multi-level dungeon, looping routes, factions within, unguarded treasure.
-- **Island Design**: independent modular elements, explored in any order.
+---
 
-**Story-driven (narrative beats as structure):**
-- **Three-Act**: establish → confront → resolve. Midpoint twist.
-- **Hero's Journey**: ordinary world → cross threshold → trials → abyss → return.
-- **Double Triangle**: rise (false victory) → fall → redemption. Ch.4 twist: players helped the villain.
-- **Kishōtenketsu** (起承转合): introduce → develop → twist (non-conflict) → harmony. No required antagonist.
-- **Beat Charts**: Hook → alternating Developments & Cliffhangers → Resolution.
-- **Hamlet's Hit Points**: alternating hope/fear beats. Procedural beats (goals) + dramatic beats (emotions).
-- **Seven-Point Story**: Hook → Plot Turn 1 → Pinch 1 → Midpoint → Pinch 2 → Plot Turn 2 → Resolution.
+## One-shot & Short: One-Step Generation
 
-**Play-driven (mechanics as structure):**
-- **Heist**: intel gathering → planning → execution → complication → escape. Player-designed plan.
-- **Mystery**: Hook → 3 cool locations → 3 clues per node (Three Clue Rule) → reveal → ending.
-- **Conspyramid**: 6-layer conspiracy (neighborhood→city→province→national→supranational→core) + 6-layer response (reflex→contain→deflect→embrace→entrap→destroy).
-- **Faction Turn**: each faction has independent goal timeline, advances even without player intervention. Passive/reactive/active relationships.
-- **Race Against Time**: clock: X rounds to complete Y, or disaster. Ticking clock each round.
-- **Survival**: resource management focus (food, water, light, ammo). Resource drain per area.
+Generate the complete module in one pass.
 
-**Character-driven (people as structure):**
-- **Plot Point Campaign**: main Plot Point Episodes + optional Savage Tales (character personal arcs).
-- **Fish Tank Intrigue**: events + factions (passive/reactive/active). Players are the variable dropped into the tank.
-- **Technoir Transmission**: 36-node master table. 2d6 pick 3 seed nodes as triangle, define relationships, add instigation event.
-- **Decision-Based**: clear choices → modular world → adaptation to player decisions.
-- **Blorb Principles**: prep entities (places, characters, items) not plots. Three tiers of truth: prep > rules > improv.
+**Output path:** `<workspace>/modules/<name>.md`
 
-**Hybrid/Experimental:**
-- **Iceberg Diagram**: surface hook → hidden depths. Backstory → clues → dynamic challenges.
-- **Reverse Dungeon**: players defend a location, monsters attack in waves.
-
-## Step 3: Collect Parameters
-
-Ask the user, or randomize. Tell them what was picked.
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| type | one-shot / short / medium / long / sandbox | short |
-| paradigm | see table above | type default |
-| theme | undead, dragon, fey, political, planar, cult... | random |
-| setting | forest, desert, city, underdark, coastal, mountain, swamp... | random |
-| villain_type | necromancer, dragon, demon, bandit lord, corrupt noble, lich, crime syndicate... | random |
-| level_range | e.g. 1-3, 3-5, 5-7, 7-10, 10-15 | 1-3 |
-| tone | dark, heroic, mystery, political, horror, whimsical | dark |
-| twist_count | number of plot twists (short:1, medium:2-3, long:4-6) | type default |
-| npc_depth | simple / moderate / complex | moderate |
-| ending_branches | number of ending variants | 2 |
-| seed | random seed for reproducibility | random |
-
-## Step 4: Generate by Type
-
-### One-shot Template
+**One-shot template:**
 
 ```markdown
 # <模组名>
 
 ## 冒险概要
-<2-3 sentences: hook, core conflict, possible outcomes>
+<2-3 sentences>
 
 ## 冒险背景
-<3-5 sentences: world context, current situation>
+<3-5 sentences>
 
-# <scene1>: <title>
-<social/narrative: NPC intro, mission briefing, clue>
+# <scene1: 开场/社交>
+<NPC list, dialogue, mission hook>
 
-# <scene2>: <title>
-<exploration/dungeon: 3-5 rooms with #### headings>
+# <scene2: 探索/地城>
+<3-5 rooms with #### headings>
 
-# <scene3>: <title>
-<boss/climax: enemies, tactics, resolution>
+# <scene3: Boss/高潮>
+<enemies, tactics, resolution>
 
-# <scene4>: <title>
-<optional epilogue/twist>
+# <scene4: 尾声>
+<optional epilogue>
 
 # 附录
-## 主要 NPC
-- **<name>** (<race> <class>): <2-3 sentences>
-
-## 怪物
-- **<name>**: see SRD. Custom: <1 sentence>
-
-## 魔法物品
-- **<name>** (<rarity>): <1-2 sentences>
+## 主要 NPC | 怪物 | 魔法物品
 ```
 
-### Short Template (3 chapters, Three-Act)
+**Short template (3 chapters, Three-Act):**
 
 ```markdown
 # <模组名>
 
-## 冒险概要
-<who, what, why, stakes>
-## 冒险背景
-<world context, key factions>
-## 运作本模组
-<level range, pacing, key choices>
+## 冒险概要 | 冒险背景 | 运作本模组
 
-# 第一章：<title>
-<!-- ch.1, current -->
-## <scene1>
-<establish world, introduce key NPC, first minor conflict>
-## <scene2>
-<first real challenge, clue points to Ch.2>
-## <scene3>
-<transition: journey or investigation leading to next chapter>
+# 第一章：建立
+## <scene1> ← NPC 引入 + 任务
+## <scene2> ← 首次挑战 + 线索
+## <scene3> ← 过渡/旅程
 
-# 第二章：<title>
-<!-- ch.2, locked -->
-## <scene1>
-<escalation: midpoint twist, stakes raised>
-## <scene2>
-<core dungeon/challenge, 4-8 rooms>
-## <scene3>
-<revelation: truth revealed, player choice point>
+# 第二章：对抗
+## <scene1> ← 中场反转
+## <scene2> ← 核心地城 (4-8 rooms)
+## <scene3> ← 揭示 + 选择点
 
-# 第三章：<title>
-<!-- ch.3, locked -->
-## <scene1>
-<climax preparation or final approach>
-## <scene2>
-<boss fight: enemies, tactics, phases>
-## <scene3>
-<resolution: 2-3 ending branches based on player choices>
+# 第三章：解决
+## <scene1> ← 最终逼近
+## <scene2> ← Boss 战
+## <scene3> ← 结局 (2-3 分支)
 
 # 附录
-## 主要 NPC
-每人 2-4 sentences, include: want, fear, secret
-## 伏笔-回收表
-| 伏笔 (Ch) | 回收 (Ch) | 内容 |
-## 怪物
-## 魔法物品
+## 主要 NPC (want/fear/secret) | 伏笔-回收表 | 怪物 | 魔法物品
 ```
 
-### Medium Template (5 chapters, Hero's Journey)
+After writing the file, import:
+
+```
+dnd_module action=import campaign_id=<id> module_name="<name>" source_path="<workspace>/modules/<name>.md"
+dnd_module action=index campaign_id=<id>
+```
+
+---
+
+## Medium: Three-Step Generation
+
+### Step M1 — 骨架（概念 + 势力 + NPC）
+
+**Output:** `<workspace>/modules/<name>_skeleton.md`
 
 ```markdown
-# <模组名>
+# <模组名>（骨架）
 
 ## 冒险概要
+<5-8 sentences: 整个 5 章的完整故事线>
+
 ## 冒险背景
+<8-12 sentences: 世界历史、当前局势、核心冲突>
+
 ## 运作本模组
+<level range, pacing, key choices that shape the campaign>
+
 ## 势力关系网
-| 势力 | 目标 | 盟友 | 敌对 |
-|------|------|------|------|
+| 势力 | 目标 | 盟友 | 敌对 | 首领 |
+|------|------|------|------|------|
+<3-5 factions>
 
-# 第一章：平凡世界与召唤
-<!-- ch.1, current -->
-<3-5 scenes: normal life disrupted, call to adventure, 1-2 side quest hooks>
+## 章节大纲
+| 章 | 标题 | 核心冲突 | 情感节拍 | 关键 NPC | 反转/揭示 |
+|----|------|---------|---------|---------|----------|
+| 1 | ... | ... | ... | ... | - |
+| 2 | ... | ... | ... | ... | ... |
+| 3 | ... | ... | ... | ... | 中期危机 |
+| 4 | ... | ... | ... | ... | ... |
+| 5 | ... | ... | ... | ... | 最终揭示 |
 
-# 第二章：跨越门槛
-<!-- ch.2, locked -->
-<4-6 scenes: enter unfamiliar world, first major battle, 1-2 recruitable allies>
+## 主要 NPC（完整）
+每人: name, race, class, alignment, want, fear, secret, chapter appearances
 
-# 第三章：试炼与盟友
-<!-- ch.3, locked -->
-<6-10 scenes: longest chapter, main + 1-2 side quests, mid-campaign crisis>
-
-# 第四章：深渊
-<!-- ch.4, locked -->
-<4-6 scenes: lowest point, sacrifice moment, inner demon confrontation>
-
-# 第五章：归来与新生
-<!-- ch.5, locked -->
-<4-6 scenes: climax boss, 2 ending variants, world changes proof>
-
-# 附录
-## 主要 NPC（含 want/fear/secret）
-## 盟友系统（招募条件、忠诚度、个人任务）
 ## 伏笔-回收表
-## 支线事件线
-| 支线 | 触发章节 | 关联主线 | 奖励 |
-## 势力关系变化（章节推进对照表）
-## 怪物
-## 魔法物品
+| 伏笔 | 埋入章节 | 回收章节 | 内容 |
 ```
 
-### Long Template (8 chapters, Double Triangle)
+**User reviews this before proceeding.** Adjust based on feedback.
+
+---
+
+### Step M2 — 前 3 章正文
+
+**Output:** `<workspace>/modules/<name>_ch1-3.md`
+
+Generate Ch.1-3 in full, each chapter following the short template structure (3-5 scenes per chapter, rooms with `####`, NPC lists with dialogue, DC values, rewards).
+
+Merge with skeleton after user approves:
+
+```
+# 将 skeleton + ch1-3 合并写入最终文件
+```
+
+Actually: write skeleton parts that stay + ch1-3 body into `<workspace>/modules/<name>.md` as a partial file.
+
+---
+
+### Step M3 — 后 2 章 + 附录
+
+**Output:** final `<workspace>/modules/<name>.md`
+
+Generate Ch.4-5. Then assemble the complete module file:
+- Skeleton (概要, 背景, 运作, 势力)
+- Ch.1-3 (from M2)
+- Ch.4-5 (newly generated)
+- 附录 (NPC, 伏笔-回收表, 势力变化, 怪物, 魔法物品)
+
+Import and index.
+
+---
+
+## Long: Five-Step Generation
+
+### Step L1 — 概念 + 双弧线大纲
+
+**Output:** `<workspace>/modules/<name>_concept.md`
 
 ```markdown
-# <模组名>
+# <模组名>（概念）
 
-## 冒险概要
-## 冒险背景
-## 运作本模组
-## 势力关系网
-## 反派时间线（玩家不干预时的进展）
+## 冒险概要 (10-15 sentences, full 8-chapter story)
 
-# 第一弧：崛起 (Ch.1-4)
-# 第一章：<title>
-# 第二章：<title>
-# 第三章：<title>
-# 第四章：虚假胜利
-<!-- players think they won, actually helped the villain -->
-
-# 第二弧：陨落与重生 (Ch.5-8)
-# 第五章：陨落
-<!-- consequences, losses, party may separate -->
-# 第六章：挣扎与启蒙
-<!-- revelation: discover villain's true weakness, personal quest -->
-# 第七章：集结力量
-<!-- gather allies, obtain ultimate weapon, final quiet moment -->
-# 第八章：最终决战
-<!-- multi-phase boss, each PC spotlight moment, multiple endings -->
-
-# 附录
-## 主要 NPC（含 arc）
-## 角色个人线（每 PC 2-3 场景）
-## 伏笔-回收表（跨 8 章完整线索链）
-## 势力关系变化
 ## 反派时间线
-## 怪物（含 Boss 多阶段数据）
-## 魔法物品
-## Epilogue（各 NPC/地点结局）
+| 阶段 | 章节 | 反派行动 | 玩家可见线索 |
+<actions the villain takes even if players do nothing>
+
+## 双弧线结构
+### 第一弧：崛起 (Ch.1-4)
+| 章 | 标题 | 核心冲突 | 虚假胜利的伏笔 |
+### 第二弧：陨落与重生 (Ch.5-8)
+| 章 | 标题 | 核心冲突 | 重生要素 |
+
+## Ch.4 虚假胜利设计
+<What makes players think they won? What did they actually cause?>
+
+## Ch.8 多重结局设计
+<3-5 ending branches based on accumulated player choices>
+
+## 势力关系网 (5-8 factions, their evolution across 8 chapters)
+## 主要 NPC (完整，含 arc)
 ```
 
-### Sandbox Template (same as before, unchanged)
+User reviews. Adjust.
 
-## Scene Requirements (All Types)
+### Step L2 — 第一弧正文 (Ch.1-4)
 
-- Every scene starts with `# ` (H1) or `## ` (H2, if inside a chapter)
-- Room/location sub-headings use `#### ` (H4 → type: "room")
-- DC values for skill checks (DC 10-15 for low level, 15-20 for mid, 20+ for high)
-- XP/gold rewards per encounter
-- NPC list format: `- **<name>** (<race> <class>, <alignment>): <personality>.<role>.<secret>.`
+**Output:** `<workspace>/modules/<name>_arc1.md`
+
+Full chapter bodies for Ch.1-4. Each 4-8 scenes.
+
+### Step L3 — 第二弧正文 (Ch.5-8)
+
+**Output:** `<workspace>/modules/<name>_arc2.md`
+
+Full chapter bodies for Ch.5-8.
+
+### Step L4 — 角色个人线 + 附录
+
+**Output:** append to final file.
+
+For each PC, a 2-3 scene personal arc that intersects the main plot.
+Generate: NPC appendix (含 arc), 伏笔-回收表 (8 章完整链), 势力变化时间线, 怪物 (含 Boss 多阶段), 魔法物品, Epilogue.
+
+### Step L5 — 组装
+
+Combine all parts into `<workspace>/modules/<name>.md`. Import and index.
+
+---
+
+## Sandbox: 1+N Step Generation
+
+### Step S1 — 世界骨架
+
+**Output:** `<workspace>/modules/<name>_world.md`
+
+```markdown
+# <沙盒名>（世界）
+
+## 世界概况
+<8-12 sentences: map scope, core conflict, faction landscape>
+
+## 区域总览
+| 区域 | 地形 | 控制势力 | 危险等级 | 关键地标 |
+<4-6 regions>
+
+## 势力关系网
+| 势力A | 关系 | 势力B | 说明 |
+
+## 随机遭遇总表 (1d12)
+## 关键 NPC 总表
+```
+
+### Step S2-N — 每个区域独立生成
+
+For each region, user says "生成区域X" or "all regions":
+
+**Output per region:** appended to `<workspace>/modules/<name>.md`
+
+```markdown
+# 区域<N>：<名称>
+## 区域特征 (3-5 sentences)
+## 势力 (who controls this, what they want)
+## 事件线 (2-4, each: trigger→process→outcome)
+## 地点 (3-6 key locations with #### room headings)
+```
+
+After all regions: import and index.
+
+---
 
 ## Import
 
 ```
-dnd_module action=import campaign_id=<id> module_name="<name>" content="<generated markdown>"
+dnd_module action=import campaign_id=<id> module_name="<name>" source_path="<workspace>/modules/<name>.md"
 dnd_module action=index campaign_id=<id>
 ```
 
-Report chapter/scene/chunk counts. If generating a large module (medium+), consider writing to file first.
+Report chapter/scene/chunk counts. If module already exists, ask user before deleting and re-importing.
+
+---
+
+## Paradigm Glossary
+
+**Space-driven:**
+- **Five-Room Dungeon**: entrance guardian → puzzle/RP → trick/setback → climax → reward/revelation
+- **Node-Based**: nodes (places, NPCs, events) connected by clues/geography/time. Non-linear.
+- **Hexcrawl**: hex grid map, each hex has encounters/locations. Random encounter tables.
+- **Megadungeon**: multi-level dungeon, looping routes, factions within.
+- **Island Design**: independent modular elements, any order.
+
+**Story-driven:**
+- **Three-Act**: establish → confront → resolve. Midpoint twist in Ch.2.
+- **Hero's Journey**: ordinary world → cross threshold → trials → abyss → return.
+- **Double Triangle**: rise (Ch.1-4) → fall (Ch.5-6) → redemption (Ch.7-8). Ch.4: false victory.
+- **Kishōtenketsu** (起承转合): introduce → develop → twist → harmony. No required antagonist.
+- **Beat Charts**: Hook → alternating Developments & Cliffhangers → Resolution.
+- **Hamlet's Hit Points**: alternating hope/fear beats.
+- **Seven-Point Story**: Hook → PT1 → Pinch1 → Midpoint → Pinch2 → PT2 → Resolution.
+
+**Play-driven:**
+- **Heist**: intel → planning → execution → complication → escape.
+- **Mystery**: Hook → 3 cool locations → 3 clues per node → reveal. Three Clue Rule.
+- **Conspyramid**: 6-layer conspiracy + 6-layer response pyramid.
+- **Faction Turn**: factions advance independently of players.
+- **Race Against Time**: clock: X rounds to complete Y.
+- **Survival**: resource management focus.
+
+**Character-driven:**
+- **Plot Point Campaign**: main Episodes + character Savage Tales.
+- **Fish Tank Intrigue**: events + factions; players are the variable dropped in.
+- **Technoir Transmission**: 36-node table, 2d6 pick 3 seeds, define triangle.
+- **Decision-Based**: clear choices → modular world → adaptation.
+- **Blorb**: prep entities not plots. Prep > rules > improv.
+
+**Hybrid:**
+- **Iceberg Diagram**: surface hook → hidden depths.
+- **Reverse Dungeon**: players defend, monsters attack.
