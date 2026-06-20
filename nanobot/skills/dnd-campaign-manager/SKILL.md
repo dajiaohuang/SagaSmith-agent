@@ -32,18 +32,47 @@ managed player-role block in `USER.md`; it never replaces the whole file.
 
 ## Manage campaigns
 
-Create only after the user asks to start a new campaign. Prefer the native
-`dnd_campaign` tool — the CLI below is the maintenance fallback.
+Create only after the user asks to start a new campaign.
 
-### 一键开团（推荐）
+### 开团流程
 
-Use `dnd_campaign` with `action=start` for a one-shot startup:
-creates campaign + pins rules + creates initial snapshot (slot 1, "初始状态")
-+ optionally imports module content. All in one call:
+**Step 1 — 确定模组来源。** 先检查数据库中已有哪些模组：
+
+```
+dnd_module action=status
+```
+
+然后问用户：使用已有模组，还是导入新模组？
+
+- **使用已有模组**：跳过导入，直接 `dnd_campaign action=start` 并指定 `module_name` 匹配已有模组名。
+- **导入新模组**：见下方"导入新模组"。
+
+**Step 2 — 一键开团：**
 
 ```
 dnd_campaign action=start name="战役名称" module_name="模组名称" [source_path="<path>"]
 ```
+
+自动完成：创建战役 + 绑定规则 + 初始存档 (slot 1) + 可选导入模组。
+
+### 导入新模组
+
+用户可以提供本地路径，或上传 PDF/Markdown 文件。上传的文件路径出现在对话中为
+`[Attachment: <path>]`。
+
+**获取路径的方式：**
+1. 用户直接指定：`source_path="D:\Downloads\模组.pdf"`
+2. 用户上传文件：从对话中提取 `[Attachment: <完整路径>]` 作为 `source_path`
+3. 用户给目录：`source_path="D:\模组文件夹\"`（会扫描目录下所有支持的格式）
+
+**导入：**
+```
+dnd_module action=import campaign_id=<id> source_path="<path>" module_name="<name>"
+dnd_module action=index campaign_id=<id>
+dnd_module action=status campaign_id=<id>
+```
+
+导入后报告 chapter/scene/chunk/embedding 数量。
 
 ### 分步操作（维护后备）
 
