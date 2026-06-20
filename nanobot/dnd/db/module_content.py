@@ -256,7 +256,14 @@ def _scenes(lines: list[str]) -> list[dict[str, object]]:
         )
         for level in (2, 3, 4)
     }
-    scene_level = 2 if _h_counts[2] > 0 else (3 if _h_counts[3] > 0 else 4)
+    if _h_counts[2] > 0 and _h_counts[3] >= _h_counts[2] * 5:
+        scene_level = 3
+    elif _h_counts[2] > 0:
+        scene_level = 2
+    elif _h_counts[3] > 0:
+        scene_level = 3
+    else:
+        scene_level = 4
     sub_level = scene_level + 1 if scene_level < 4 else None
     scene_prefix = scene_level * "#" + " "
     sub_prefix = sub_level * "#" + " " if sub_level else None
@@ -289,6 +296,39 @@ def _scenes(lines: list[str]) -> list[dict[str, object]]:
                 "headings": headings,
                 "keywords": _tags(title),
             }
+        )
+
+    # Capture preamble before the first scene heading (same logic as _parse_scene_index)
+    if scenes and int(scenes[0]["start_line"]) > 1:
+        preamble_end = int(scenes[0]["start_line"]) - 1
+        preamble_lines = lines[:preamble_end]
+        preamble_title = ""
+        for pline in preamble_lines:
+            ps = pline.strip()
+            if ps.startswith("#") and ps.lstrip("#").strip():
+                preamble_title = ps.lstrip("#").strip()
+                break
+        if not preamble_title:
+            for pline in preamble_lines:
+                if pline.strip() and not pline.strip().startswith("<!--"):
+                    preamble_title = pline.strip()[:80]
+                    break
+        if not preamble_title:
+            preamble_title = "Chapter Intro"
+        preamble_headings = [
+            l.lstrip("# ").strip()
+            for l in preamble_lines
+            if sub_prefix and l.startswith(sub_prefix)
+        ]
+        scenes.insert(
+            0,
+            {
+                "title": preamble_title,
+                "start_line": 1,
+                "end_line": preamble_end,
+                "headings": preamble_headings,
+                "keywords": _tags(preamble_title),
+            },
         )
 
     # Merge adjacent empty scenes (same bilingual-split fix as _parse_scene_index)
@@ -346,7 +386,17 @@ def _parse_scene_index(lines: list[str]) -> list[dict[str, object]]:
         level: sum(1 for l in lines if l.startswith(level * "#" + " ") and not l.startswith((level + 1) * "#"))
         for level in (2, 3, 4)
     }
-    scene_level = 2 if _h_counts[2] > 0 else (3 if _h_counts[3] > 0 else 4)
+    # Auto-detect scene heading level.  When the next-lower heading level
+    # outnumbers H2 by ≥5× it is the real structural level (common in PDF
+    # conversions where H2 is used only for top-level bookmarks).
+    if _h_counts[2] > 0 and _h_counts[3] >= _h_counts[2] * 5:
+        scene_level = 3
+    elif _h_counts[2] > 0:
+        scene_level = 2
+    elif _h_counts[3] > 0:
+        scene_level = 3
+    else:
+        scene_level = 4
     sub_level = scene_level + 1 if scene_level < 4 else None
     room_level = scene_level + 2 if scene_level < 3 else None
 
@@ -399,6 +449,40 @@ def _parse_scene_index(lines: list[str]) -> list[dict[str, object]]:
     if current_scene is not None:
         current_scene["end_line"] = len(lines)
         scenes.append(current_scene)
+
+    # ---- capture preamble before the first scene heading ----
+    # When scene_level is raised (e.g. H3 instead of H2), higher-level
+    # headings near the top may not start a scene.  Grab lines before the
+    # first scene as an intro scene, using the first available heading as
+    # its title.
+    if scenes and int(scenes[0]["start_line"]) > 1:
+        preamble_end = int(scenes[0]["start_line"]) - 1
+        preamble_lines = lines[:preamble_end]
+        # Find the first heading of any level to use as the title
+        preamble_title = ""
+        for pline in preamble_lines:
+            ps = pline.strip()
+            if ps.startswith("#") and ps.lstrip("#").strip():
+                preamble_title = ps.lstrip("#").strip()
+                break
+        if not preamble_title:
+            # Grab the first non-blank line as a fallback
+            for pline in preamble_lines:
+                if pline.strip() and not pline.strip().startswith("<!--"):
+                    preamble_title = pline.strip()[:80]
+                    break
+        if not preamble_title:
+            preamble_title = "Chapter Intro"
+        preamble_scene: dict[str, object] = {
+            "title": preamble_title,
+            "start_line": 1,
+            "end_line": preamble_end,
+            "type": "section",
+            "subsections": [],
+            "line_count": preamble_end,
+            "tags": _scene_tags(preamble_title),
+        }
+        scenes.insert(0, preamble_scene)
 
     for scene in scenes:
         scene["line_count"] = int(scene["end_line"]) - int(scene["start_line"]) + 1

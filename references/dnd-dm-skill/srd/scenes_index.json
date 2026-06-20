@@ -6,6 +6,17 @@
     "total_lines": 298,
     "scenes": [
       {
+        "title": "第一章：双城记",
+        "start_line": 1,
+        "end_line": 109,
+        "type": "section",
+        "subsections": [],
+        "line_count": 109,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
         "title": "博德之门的麻烦 Trouble in Baldur's Gate",
         "start_line": 110,
         "end_line": 119,
@@ -145,6 +156,17 @@
     "filepath": "D:\\Downloads\\DND5e_坠入阿弗纳斯精排校对版1.0（不包含地理志）.pdf",
     "total_lines": 1701,
     "scenes": [
+      {
+        "title": "第一章 双城记",
+        "start_line": 1,
+        "end_line": 68,
+        "type": "section",
+        "subsections": [],
+        "line_count": 68,
+        "tags": [
+          "exploration"
+        ]
+      },
       {
         "title": "与佐迪队长见面 Meeting Captain Zodge",
         "start_line": 69,
@@ -956,6 +978,17 @@
     "total_lines": 853,
     "scenes": [
       {
+        "title": "第二章 埃尔托瑞尔已然坠落",
+        "start_line": 1,
+        "end_line": 10,
+        "type": "section",
+        "subsections": [],
+        "line_count": 10,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
         "title": "运作本章Running This Chapter",
         "start_line": 11,
         "end_line": 22,
@@ -1255,556 +1288,950 @@
     "total_lines": 2078,
     "scenes": [
       {
-        "title": "运作本章Running This Chapter",
-        "start_line": 9,
-        "end_line": 26,
+        "title": "第三章 阿弗纳斯",
+        "start_line": 1,
+        "end_line": 54,
+        "type": "section",
+        "subsections": [],
+        "line_count": 54,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "阿弗纳斯的访客 Visitors to Avernus",
+        "start_line": 55,
+        "end_line": 60,
+        "type": "section",
+        "subsections": [],
+        "line_count": 6,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "扎瑞尔的战争 Zariel’s War",
+        "start_line": 61,
+        "end_line": 94,
+        "type": "section",
+        "subsections": [],
+        "line_count": 34,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "冥河 River Styx",
+        "start_line": 95,
+        "end_line": 110,
+        "type": "section",
+        "subsections": [],
+        "line_count": 16,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "魔法变化 Alterations to Magic",
+        "start_line": 111,
+        "end_line": 128,
         "type": "section",
         "subsections": [],
         "line_count": 18,
         "tags": [
-          "intro"
+          "exploration"
         ]
       },
       {
-        "title": "阿弗纳斯是何处？What is Avernus",
-        "start_line": 27,
-        "end_line": 86,
+        "title": "恶魔秽液 Demon Ichor",
+        "start_line": 129,
+        "end_line": 136,
         "type": "section",
-        "subsections": [
-          {
-            "title": "阿弗纳斯的访客 Visitors to Avernus",
-            "line": 55,
-            "tags": []
-          },
-          {
-            "title": "扎瑞尔的战争 Zariel’s War",
-            "line": 61,
-            "tags": []
-          }
-        ],
-        "line_count": 60,
+        "subsections": [],
+        "line_count": 8,
         "tags": [
           "exploration"
         ]
       },
       {
-        "title": "阿弗纳斯的特征Features of Avernus",
-        "start_line": 87,
-        "end_line": 210,
+        "title": "食物和饮品 Food and Drink",
+        "start_line": 137,
+        "end_line": 190,
         "type": "section",
-        "subsections": [
-          {
-            "title": "冥河 River Styx",
-            "line": 95,
-            "tags": []
-          },
-          {
-            "title": "魔法变化 Alterations to Magic",
-            "line": 111,
-            "tags": []
-          },
-          {
-            "title": "恶魔秽液 Demon Ichor",
-            "line": 129,
-            "tags": []
-          },
-          {
-            "title": "食物和饮品 Food and Drink",
-            "line": 137,
-            "tags": []
-          },
-          {
-            "title": "在阿弗纳斯休整 Rests inAvernus",
-            "line": 191,
-            "tags": []
-          },
-          {
-            "title": "可选规则 Optional Rules",
-            "line": 195,
-            "tags": []
-          }
-        ],
-        "line_count": 124,
+        "subsections": [],
+        "line_count": 54,
         "tags": [
           "exploration"
         ]
       },
       {
-        "title": "使用海报地图Using the Poster Map",
-        "start_line": 211,
-        "end_line": 2078,
+        "title": "在阿弗纳斯休整 Rests inAvernus",
+        "start_line": 191,
+        "end_line": 194,
+        "type": "section",
+        "subsections": [],
+        "line_count": 4,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "可选规则 Optional Rules",
+        "start_line": 195,
+        "end_line": 234,
+        "type": "section",
+        "subsections": [],
+        "line_count": 40,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "制定路线 Charting a Course",
+        "start_line": 235,
+        "end_line": 261,
+        "type": "section",
+        "subsections": [],
+        "line_count": 27,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "到达堡垒 Arrival at the Fort",
+        "start_line": 262,
+        "end_line": 287,
+        "type": "section",
+        "subsections": [],
+        "line_count": 26,
+        "tags": [
+          "exploration",
+          "dungeon"
+        ]
+      },
+      {
+        "title": "进入堡垒 Entering the Fort",
+        "start_line": 288,
+        "end_line": 321,
+        "type": "section",
+        "subsections": [],
+        "line_count": 34,
+        "tags": [
+          "exploration",
+          "dungeon"
+        ]
+      },
+      {
+        "title": "疯喜鹊 Mad Maggie",
+        "start_line": 322,
+        "end_line": 337,
+        "type": "section",
+        "subsections": [],
+        "line_count": 16,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "指节骨帮 the Knucklebones Gang",
+        "start_line": 338,
+        "end_line": 421,
+        "type": "section",
+        "subsections": [],
+        "line_count": 84,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "露露的梦境探索 Lulu's Dream Quest",
+        "start_line": 422,
+        "end_line": 515,
+        "type": "section",
+        "subsections": [],
+        "line_count": 94,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "告别 Farewell",
+        "start_line": 516,
+        "end_line": 561,
+        "type": "section",
+        "subsections": [],
+        "line_count": 46,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "地狱战车战斗 Infernal war Machine Combat",
+        "start_line": 562,
+        "end_line": 567,
+        "type": "section",
+        "subsections": [],
+        "line_count": 6,
+        "tags": [
+          "combat",
+          "encounter"
+        ]
+      },
+      {
+        "title": "苦痛之息 Bitter Breath",
+        "start_line": 568,
+        "end_line": 581,
+        "type": "section",
+        "subsections": [],
+        "line_count": 14,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "菲奥诺 Feonor",
+        "start_line": 582,
+        "end_line": 593,
+        "type": "section",
+        "subsections": [],
+        "line_count": 12,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "元首科维克 Princeps Kovik",
+        "start_line": 594,
+        "end_line": 625,
+        "type": "section",
+        "subsections": [],
+        "line_count": 32,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "詹德·晨星 Jander Sunstar",
+        "start_line": 626,
+        "end_line": 645,
+        "type": "section",
+        "subsections": [],
+        "line_count": 20,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "哈鲁曼的到来 Haruman'sArrival",
+        "start_line": 646,
+        "end_line": 675,
+        "type": "section",
+        "subsections": [],
+        "line_count": 30,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "巢穴中的遭遇 Encounter in the Nest",
+        "start_line": 676,
+        "end_line": 731,
         "type": "section",
         "subsections": [
-          {
-            "title": "制定路线 Charting a Course",
-            "line": 235,
-            "tags": []
-          },
-          {
-            "title": "到达堡垒 Arrival at the Fort",
-            "line": 262,
-            "tags": []
-          },
-          {
-            "title": "进入堡垒 Entering the Fort",
-            "line": 288,
-            "tags": []
-          },
-          {
-            "title": "疯喜鹊 Mad Maggie",
-            "line": 322,
-            "tags": []
-          },
-          {
-            "title": "指节骨帮 the Knucklebones Gang",
-            "line": 338,
-            "tags": []
-          },
-          {
-            "title": "露露的梦境探索 Lulu's Dream Quest",
-            "line": 422,
-            "tags": []
-          },
-          {
-            "title": "告别 Farewell",
-            "line": 516,
-            "tags": []
-          },
-          {
-            "title": "地狱战车战斗 Infernal war Machine Combat",
-            "line": 562,
-            "tags": []
-          },
-          {
-            "title": "苦痛之息 Bitter Breath",
-            "line": 568,
-            "tags": []
-          },
-          {
-            "title": "菲奥诺 Feonor",
-            "line": 582,
-            "tags": []
-          },
-          {
-            "title": "元首科维克 Princeps Kovik",
-            "line": 594,
-            "tags": []
-          },
-          {
-            "title": "詹德·晨星 Jander Sunstar",
-            "line": 626,
-            "tags": []
-          },
-          {
-            "title": "哈鲁曼的到来 Haruman'sArrival",
-            "line": 646,
-            "tags": []
-          },
-          {
-            "title": "巢穴中的遭遇 Encounter in the Nest",
-            "line": 676,
-            "tags": []
-          },
           {
             "title": "N1.进入层 Entry Level",
             "line": 682,
-            "type": "room"
+            "tags": []
           },
           {
             "title": "N2.雄峰房间 Drone Cells",
             "line": 692,
-            "type": "room"
+            "tags": []
           },
           {
             "title": "N3.黄泉蜂幼虫 Hellwasp Larvae",
             "line": 696,
-            "type": "room"
+            "tags": []
           },
           {
             "title": "N4.储肉室 Larder",
             "line": 702,
-            "type": "room"
-          },
-          {
-            "title": "魔鬼的工作人员 Devilish Work Crew",
-            "line": 732,
             "tags": []
-          },
-          {
-            "title": "发展 Development",
-            "line": 764,
-            "tags": []
-          },
-          {
-            "title": "与魔邓肯交谈 Talking to Mordenkainen",
-            "line": 786,
-            "tags": []
-          },
-          {
-            "title": "法师的理论 AWizard's Theory",
-            "line": 812,
-            "tags": []
-          },
-          {
-            "title": "发展 Development",
-            "line": 838,
-            "tags": []
-          },
-          {
-            "title": "使节 The Emissary",
-            "line": 852,
-            "tags": []
-          },
-          {
-            "title": "被囚禁的尤格罗斯魔 Imprisoned Ultroloth",
-            "line": 891,
-            "tags": []
-          },
-          {
-            "title": "筑坝冥河 Damming The Styx",
-            "line": 905,
-            "tags": []
-          },
-          {
-            "title": "发展 Development",
-            "line": 911,
-            "tags": []
-          },
-          {
-            "title": "在墓穴里的遭遇 Encounters In The Crypt",
-            "line": 933,
-            "tags": []
-          },
+          }
+        ],
+        "line_count": 56,
+        "tags": [
+          "combat",
+          "encounter"
+        ]
+      },
+      {
+        "title": "魔鬼的工作人员 Devilish Work Crew",
+        "start_line": 732,
+        "end_line": 763,
+        "type": "section",
+        "subsections": [],
+        "line_count": 32,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "发展 Development",
+        "start_line": 764,
+        "end_line": 785,
+        "type": "section",
+        "subsections": [],
+        "line_count": 22,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "与魔邓肯交谈 Talking to Mordenkainen",
+        "start_line": 786,
+        "end_line": 811,
+        "type": "section",
+        "subsections": [],
+        "line_count": 26,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "法师的理论 AWizard's Theory",
+        "start_line": 812,
+        "end_line": 837,
+        "type": "section",
+        "subsections": [],
+        "line_count": 26,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "发展 Development",
+        "start_line": 838,
+        "end_line": 851,
+        "type": "section",
+        "subsections": [],
+        "line_count": 14,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "使节 The Emissary",
+        "start_line": 852,
+        "end_line": 890,
+        "type": "section",
+        "subsections": [],
+        "line_count": 39,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "被囚禁的尤格罗斯魔 Imprisoned Ultroloth",
+        "start_line": 891,
+        "end_line": 904,
+        "type": "section",
+        "subsections": [],
+        "line_count": 14,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "筑坝冥河 Damming The Styx",
+        "start_line": 905,
+        "end_line": 910,
+        "type": "section",
+        "subsections": [],
+        "line_count": 6,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "发展 Development",
+        "start_line": 911,
+        "end_line": 932,
+        "type": "section",
+        "subsections": [],
+        "line_count": 22,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "在墓穴里的遭遇 Encounters In The Crypt",
+        "start_line": 933,
+        "end_line": 1047,
+        "type": "section",
+        "subsections": [
           {
             "title": "C1.密封门 Sealed Gates",
             "line": 937,
-            "type": "room"
+            "tags": []
           },
           {
             "title": "C2.殡葬室 Funerary Chambers",
             "line": 949,
-            "type": "room"
+            "tags": []
           },
           {
             "title": "C3.骑士的棺材 Knights’ Caskets",
             "line": 979,
-            "type": "room"
+            "tags": []
           },
           {
             "title": "C4.邪术师的坟墓 Warlocks’ Tomb",
             "line": 989,
-            "type": "room"
+            "tags": []
           },
           {
             "title": "C5.追悼石碑 Memorial Steles",
             "line": 999,
-            "type": "room"
+            "tags": []
           },
           {
             "title": "C6.仪式房间 Ritual Rooms",
             "line": 1013,
-            "type": "room"
+            "tags": []
           },
           {
             "title": "C7 .奥兰苏斯的休息处 Olanthius’s Retreat",
             "line": 1023,
-            "type": "room"
-          },
-          {
-            "title": "奥兰苏斯归来 Olanthius Returns",
-            "line": 1048,
             "tags": []
-          },
-          {
-            "title": "发展 Development",
-            "line": 1054,
-            "tags": []
-          },
-          {
-            "title": "深坑 The Chasm",
-            "line": 1098,
-            "tags": []
-          },
-          {
-            "title": "发展 Development",
-            "line": 1108,
-            "tags": []
-          },
-          {
-            "title": "土巨灵拉尔萨拉 Ralzala the Dao",
-            "line": 1130,
-            "tags": []
-          },
-          {
-            "title": "骨棘林中的遭遇 Encounters in the Brambles",
-            "line": 1174,
-            "tags": []
-          },
+          }
+        ],
+        "line_count": 115,
+        "tags": [
+          "combat",
+          "encounter"
+        ]
+      },
+      {
+        "title": "奥兰苏斯归来 Olanthius Returns",
+        "start_line": 1048,
+        "end_line": 1053,
+        "type": "section",
+        "subsections": [],
+        "line_count": 6,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "发展 Development",
+        "start_line": 1054,
+        "end_line": 1097,
+        "type": "section",
+        "subsections": [],
+        "line_count": 44,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "深坑 The Chasm",
+        "start_line": 1098,
+        "end_line": 1107,
+        "type": "section",
+        "subsections": [],
+        "line_count": 10,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "发展 Development",
+        "start_line": 1108,
+        "end_line": 1129,
+        "type": "section",
+        "subsections": [],
+        "line_count": 22,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "土巨灵拉尔萨拉 Ralzala the Dao",
+        "start_line": 1130,
+        "end_line": 1173,
+        "type": "section",
+        "subsections": [],
+        "line_count": 44,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "骨棘林中的遭遇 Encounters in the Brambles",
+        "start_line": 1174,
+        "end_line": 1221,
+        "type": "section",
+        "subsections": [
           {
             "title": "B1.入口Entrances",
             "line": 1178,
-            "type": "room"
+            "tags": []
           },
           {
             "title": "B2.死胡同 Dead Ends",
             "line": 1184,
-            "type": "room"
+            "tags": []
           },
           {
             "title": "B3. 红露丝的巢穴 Red Ruth’s Lair",
             "line": 1204,
-            "type": "room"
-          },
-          {
-            "title": "暂代防守 Hold The Fort",
-            "line": 1222,
             "tags": []
-          },
-          {
-            "title": "发展 Development",
-            "line": 1234,
-            "tags": []
-          },
-          {
-            "title": "与乌尔德拉克交涉 Dealing with Uldrak",
-            "line": 1246,
-            "tags": []
-          },
-          {
-            "title": "发展 Development",
-            "line": 1284,
-            "tags": []
-          },
-          {
-            "title": "残忍的阿克汉 Arkhan the Cruel",
-            "line": 1312,
-            "tags": []
-          },
-          {
-            "title": "发展 Development",
-            "line": 1324,
-            "tags": []
-          },
-          {
-            "title": "熔炉特性 Forge Features",
-            "line": 1342,
-            "tags": []
-          },
-          {
-            "title": "熔炉的遭遇 Encounters in the Forge",
-            "line": 1352,
-            "tags": []
-          },
+          }
+        ],
+        "line_count": 48,
+        "tags": [
+          "combat",
+          "encounter"
+        ]
+      },
+      {
+        "title": "暂代防守 Hold The Fort",
+        "start_line": 1222,
+        "end_line": 1233,
+        "type": "section",
+        "subsections": [],
+        "line_count": 12,
+        "tags": [
+          "exploration",
+          "dungeon"
+        ]
+      },
+      {
+        "title": "发展 Development",
+        "start_line": 1234,
+        "end_line": 1245,
+        "type": "section",
+        "subsections": [],
+        "line_count": 12,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "与乌尔德拉克交涉 Dealing with Uldrak",
+        "start_line": 1246,
+        "end_line": 1283,
+        "type": "section",
+        "subsections": [],
+        "line_count": 38,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "发展 Development",
+        "start_line": 1284,
+        "end_line": 1311,
+        "type": "section",
+        "subsections": [],
+        "line_count": 28,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "残忍的阿克汉 Arkhan the Cruel",
+        "start_line": 1312,
+        "end_line": 1323,
+        "type": "section",
+        "subsections": [],
+        "line_count": 12,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "发展 Development",
+        "start_line": 1324,
+        "end_line": 1341,
+        "type": "section",
+        "subsections": [],
+        "line_count": 18,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "熔炉特性 Forge Features",
+        "start_line": 1342,
+        "end_line": 1351,
+        "type": "section",
+        "subsections": [],
+        "line_count": 10,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "熔炉的遭遇 Encounters in the Forge",
+        "start_line": 1352,
+        "end_line": 1383,
+        "type": "section",
+        "subsections": [
           {
             "title": "F1.降临锻炉 Descent to the Forge",
             "line": 1356,
-            "type": "room"
+            "tags": []
           },
           {
             "title": "F2.火巨人铁匠 Fire Ginat Blacksmiths",
             "line": 1368,
-            "type": "room"
+            "tags": []
           },
           {
             "title": "F3.武器架 Weapons Rack",
             "line": 1374,
-            "type": "room"
+            "tags": []
           },
           {
             "title": "F4.岩浆池 Pool of Magma",
             "line": 1380,
-            "type": "room"
-          },
-          {
-            "title": "扮演贝尔 Roleplaying Bel",
-            "line": 1384,
             "tags": []
-          },
-          {
-            "title": "发展 Development",
-            "line": 1421,
-            "tags": []
-          },
-          {
-            "title": "盘问巨颅魔Interrogating the Sibriex",
-            "line": 1459,
-            "tags": []
-          },
-          {
-            "title": "释放巨颅魔 Releasing the Sibriex",
-            "line": 1471,
-            "tags": []
-          },
-          {
-            "title": "肉体扭曲 Flesh Warping",
-            "line": 1475,
-            "tags": []
-          },
-          {
-            "title": "发展 Development",
-            "line": 1481,
-            "tags": []
-          },
-          {
-            "title": "抵达废墟 Arrival at the Wreck",
-            "line": 1493,
-            "tags": []
-          },
-          {
-            "title": "底层甲板 Lower Deck",
-            "line": 1505,
-            "tags": []
-          },
-          {
-            "title": "指挥层的特征 Command Deck Features",
-            "line": 1517,
-            "tags": []
-          },
-          {
-            "title": "指挥层的遭遇 Command Deck Encounters",
-            "line": 1527,
-            "tags": []
-          },
+          }
+        ],
+        "line_count": 32,
+        "tags": [
+          "combat",
+          "encounter"
+        ]
+      },
+      {
+        "title": "扮演贝尔 Roleplaying Bel",
+        "start_line": 1384,
+        "end_line": 1420,
+        "type": "section",
+        "subsections": [],
+        "line_count": 37,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "发展 Development",
+        "start_line": 1421,
+        "end_line": 1458,
+        "type": "section",
+        "subsections": [],
+        "line_count": 38,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "盘问巨颅魔Interrogating the Sibriex",
+        "start_line": 1459,
+        "end_line": 1470,
+        "type": "section",
+        "subsections": [],
+        "line_count": 12,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "释放巨颅魔 Releasing the Sibriex",
+        "start_line": 1471,
+        "end_line": 1474,
+        "type": "section",
+        "subsections": [],
+        "line_count": 4,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "肉体扭曲 Flesh Warping",
+        "start_line": 1475,
+        "end_line": 1480,
+        "type": "section",
+        "subsections": [],
+        "line_count": 6,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "发展 Development",
+        "start_line": 1481,
+        "end_line": 1492,
+        "type": "section",
+        "subsections": [],
+        "line_count": 12,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "抵达废墟 Arrival at the Wreck",
+        "start_line": 1493,
+        "end_line": 1504,
+        "type": "section",
+        "subsections": [],
+        "line_count": 12,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "底层甲板 Lower Deck",
+        "start_line": 1505,
+        "end_line": 1516,
+        "type": "section",
+        "subsections": [],
+        "line_count": 12,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "指挥层的特征 Command Deck Features",
+        "start_line": 1517,
+        "end_line": 1526,
+        "type": "section",
+        "subsections": [],
+        "line_count": 10,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "指挥层的遭遇 Command Deck Encounters",
+        "start_line": 1527,
+        "end_line": 1646,
+        "type": "section",
+        "subsections": [
           {
             "title": "W1.舰桥 Bridge",
             "line": 1531,
-            "type": "room"
+            "tags": []
           },
           {
             "title": "W2.警报控制室 Alarm Console",
             "line": 1547,
-            "type": "room"
+            "tags": []
           },
           {
             "title": "W3.破损的机器 Damaged Machinery",
             "line": 1569,
-            "type": "room"
+            "tags": []
           },
           {
             "title": "W4.记录室 Records Room",
             "line": 1579,
-            "type": "room"
+            "tags": []
           },
           {
             "title": "W5.精金法杖 Adamantine Rods",
             "line": 1605,
-            "type": "room"
+            "tags": []
           },
           {
             "title": "W6.黑钟 Black Bell",
             "line": 1625,
-            "type": "room"
+            "tags": []
           },
           {
             "title": "W7.蚊蝠巢穴 Stirge Nest",
             "line": 1633,
-            "type": "room"
+            "tags": []
           },
           {
             "title": "W8.信息中心 Signal Desks",
             "line": 1643,
-            "type": "room"
-          },
-          {
-            "title": "发展 Development",
-            "line": 1647,
             "tags": []
-          },
-          {
-            "title": "和巴泽勒斯滕做交易Dealing with Bazelsteen",
-            "line": 1701,
-            "tags": []
-          },
-          {
-            "title": "瞭望塔的特征 Watchtower Features",
-            "line": 1735,
-            "tags": []
-          },
-          {
-            "title": "瞭望塔的区域 Watchtower Locations",
-            "line": 1751,
-            "tags": []
-          },
+          }
+        ],
+        "line_count": 120,
+        "tags": [
+          "combat",
+          "encounter"
+        ]
+      },
+      {
+        "title": "发展 Development",
+        "start_line": 1647,
+        "end_line": 1700,
+        "type": "section",
+        "subsections": [],
+        "line_count": 54,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "和巴泽勒斯滕做交易Dealing with Bazelsteen",
+        "start_line": 1701,
+        "end_line": 1734,
+        "type": "section",
+        "subsections": [],
+        "line_count": 34,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "瞭望塔的特征 Watchtower Features",
+        "start_line": 1735,
+        "end_line": 1750,
+        "type": "section",
+        "subsections": [],
+        "line_count": 16,
+        "tags": [
+          "exploration",
+          "dungeon"
+        ]
+      },
+      {
+        "title": "瞭望塔的区域 Watchtower Locations",
+        "start_line": 1751,
+        "end_line": 1790,
+        "type": "section",
+        "subsections": [
           {
             "title": "T1.一楼 Ground Floor",
             "line": 1755,
-            "type": "room"
+            "tags": []
           },
           {
             "title": "T2.二楼 Second Floor",
             "line": 1765,
-            "type": "room"
+            "tags": []
           },
           {
             "title": "T3.屋顶Roof",
             "line": 1773,
-            "type": "room"
-          },
-          {
-            "title": "炼狱圣地 Infernal Pilgrim",
-            "line": 1791,
-            "tags": []
-          },
-          {
-            "title": "故事动机 Story Hooks",
-            "line": 1803,
-            "tags": []
-          },
-          {
-            "title": "商城之主马哈迪 Mahadi,Emporium Master",
-            "line": 1815,
-            "tags": []
-          },
-          {
-            "title": "Approaching the Wandering Emporium",
-            "line": 1861,
-            "tags": []
-          },
-          {
-            "title": "流浪商城的商店",
-            "line": 1877,
-            "tags": []
-          },
-          {
-            "title": "Wandering Emporium Businesses",
-            "line": 1879,
-            "tags": []
-          },
-          {
-            "title": "入侵堡垒 Infiltrating the Fortress",
-            "line": 1988,
-            "tags": []
-          },
-          {
-            "title": "开动堡垒 Moving the Fortress",
-            "line": 2002,
-            "tags": []
-          },
-          {
-            "title": "破坏堡垒 Sabotaging the Fortress",
-            "line": 2006,
-            "tags": []
-          },
-          {
-            "title": "偷渡 Stowing Away",
-            "line": 2014,
-            "tags": []
-          },
-          {
-            "title": "可怜的魔鬼：塔维斯·克雷格",
-            "line": 2030,
-            "tags": []
-          },
-          {
-            "title": "Poor Devil：Thavius Kreeg",
-            "line": 2032,
             "tags": []
           }
         ],
-        "line_count": 1868,
+        "line_count": 40,
         "tags": [
           "exploration",
-          "combat"
+          "dungeon"
+        ]
+      },
+      {
+        "title": "炼狱圣地 Infernal Pilgrim",
+        "start_line": 1791,
+        "end_line": 1802,
+        "type": "section",
+        "subsections": [],
+        "line_count": 12,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "故事动机 Story Hooks",
+        "start_line": 1803,
+        "end_line": 1814,
+        "type": "section",
+        "subsections": [],
+        "line_count": 12,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "商城之主马哈迪 Mahadi,Emporium Master",
+        "start_line": 1815,
+        "end_line": 1860,
+        "type": "section",
+        "subsections": [],
+        "line_count": 46,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "Approaching the Wandering Emporium",
+        "start_line": 1861,
+        "end_line": 1876,
+        "type": "section",
+        "subsections": [],
+        "line_count": 16,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "流浪商城的商店 Wandering Emporium Businesses",
+        "start_line": 1877,
+        "end_line": 1987,
+        "type": "section",
+        "subsections": [],
+        "line_count": 111,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "入侵堡垒 Infiltrating the Fortress",
+        "start_line": 1988,
+        "end_line": 2001,
+        "type": "section",
+        "subsections": [],
+        "line_count": 14,
+        "tags": [
+          "exploration",
+          "dungeon"
+        ]
+      },
+      {
+        "title": "开动堡垒 Moving the Fortress",
+        "start_line": 2002,
+        "end_line": 2005,
+        "type": "section",
+        "subsections": [],
+        "line_count": 4,
+        "tags": [
+          "exploration",
+          "dungeon"
+        ]
+      },
+      {
+        "title": "破坏堡垒 Sabotaging the Fortress",
+        "start_line": 2006,
+        "end_line": 2013,
+        "type": "section",
+        "subsections": [],
+        "line_count": 8,
+        "tags": [
+          "exploration",
+          "dungeon"
+        ]
+      },
+      {
+        "title": "偷渡 Stowing Away",
+        "start_line": 2014,
+        "end_line": 2029,
+        "type": "section",
+        "subsections": [],
+        "line_count": 16,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "可怜的魔鬼：塔维斯·克雷格 Poor Devil：Thavius Kreeg",
+        "start_line": 2030,
+        "end_line": 2078,
+        "type": "section",
+        "subsections": [],
+        "line_count": 49,
+        "tags": [
+          "exploration",
+          "dungeon"
         ]
       }
     ]
@@ -1813,6 +2240,17 @@
     "filepath": "D:\\Downloads\\DND5e_坠入阿弗纳斯精排校对版1.0（不包含地理志）.pdf",
     "total_lines": 500,
     "scenes": [
+      {
+        "title": "第四章 扎瑞尔之剑",
+        "start_line": 1,
+        "end_line": 26,
+        "type": "section",
+        "subsections": [],
+        "line_count": 26,
+        "tags": [
+          "exploration"
+        ]
+      },
       {
         "title": "进入血痂 Entering the Scab",
         "start_line": 27,
@@ -2006,28 +2444,144 @@
     "total_lines": 367,
     "scenes": [
       {
-        "title": "埃尔托瑞尔的终局 Endgame in Elturel",
-        "start_line": 299,
+        "title": "第五章 逃离阿弗纳斯 Escape from Avernus",
+        "start_line": 1,
+        "end_line": 16,
+        "type": "section",
+        "subsections": [],
+        "line_count": 16,
+        "tags": [
+          "transition"
+        ]
+      },
+      {
+        "title": "救赎扎瑞尔Redeeming Zariel",
+        "start_line": 17,
+        "end_line": 84,
+        "type": "section",
+        "subsections": [],
+        "line_count": 68,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "扎瑞尔的愤怒 Zariel’s Wrath",
+        "start_line": 85,
+        "end_line": 130,
+        "type": "section",
+        "subsections": [],
+        "line_count": 46,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "服从扎瑞尔 Serving Zariel",
+        "start_line": 131,
+        "end_line": 146,
+        "type": "section",
+        "subsections": [],
+        "line_count": 16,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "统治阿弗纳斯 Ruling Avernus",
+        "start_line": 147,
+        "end_line": 196,
+        "type": "section",
+        "subsections": [],
+        "line_count": 50,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "打破枷锁 Breaking the Chains",
+        "start_line": 197,
+        "end_line": 222,
+        "type": "section",
+        "subsections": [],
+        "line_count": 26,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "打破契约 Breaking the Contract",
+        "start_line": 223,
+        "end_line": 240,
+        "type": "section",
+        "subsections": [],
+        "line_count": 18,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "终极牺牲 The Ultimate Sacrifice",
+        "start_line": 241,
+        "end_line": 264,
+        "type": "section",
+        "subsections": [],
+        "line_count": 24,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "和扎瑞尔做交易 Making a Deal with Zariel",
+        "start_line": 265,
+        "end_line": 278,
+        "type": "section",
+        "subsections": [],
+        "line_count": 14,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "处理伴阳 Dealing with the Companion",
+        "start_line": 279,
+        "end_line": 308,
+        "type": "section",
+        "subsections": [],
+        "line_count": 30,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "事件 1：河边 River's Edge",
+        "start_line": 309,
+        "end_line": 324,
+        "type": "section",
+        "subsections": [],
+        "line_count": 16,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "事件 2：火场 Field of Flames",
+        "start_line": 325,
+        "end_line": 346,
+        "type": "section",
+        "subsections": [],
+        "line_count": 22,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "事件 3：决战扎瑞尔 Showdown with Zariel",
+        "start_line": 347,
         "end_line": 367,
         "type": "section",
-        "subsections": [
-          {
-            "title": "事件 1：河边 River's Edge",
-            "line": 309,
-            "tags": []
-          },
-          {
-            "title": "事件 2：火场 Field of Flames",
-            "line": 325,
-            "tags": []
-          },
-          {
-            "title": "事件 3：决战扎瑞尔 Showdown with Zariel",
-            "line": 347,
-            "tags": []
-          }
-        ],
-        "line_count": 69,
+        "subsections": [],
+        "line_count": 21,
         "tags": [
           "exploration"
         ]
@@ -2038,6 +2592,17 @@
     "filepath": "D:\\Downloads\\DND5e_坠入阿弗纳斯精排校对版1.0（不包含地理志）.pdf",
     "total_lines": 195,
     "scenes": [
+      {
+        "title": "附录 A：邪恶交易 Diabolical Deals",
+        "start_line": 1,
+        "end_line": 12,
+        "type": "section",
+        "subsections": [],
+        "line_count": 12,
+        "tags": [
+          "exploration"
+        ]
+      },
       {
         "title": "达成协议 Entering into a Deal",
         "start_line": 13,
@@ -2111,168 +2676,256 @@
     "total_lines": 347,
     "scenes": [
       {
-        "title": "数据Stat Blocks",
-        "start_line": 11,
-        "end_line": 46,
+        "title": "附录 B：地狱战争机器 Infernal War Machines",
+        "start_line": 1,
+        "end_line": 14,
         "type": "section",
-        "subsections": [
-          {
-            "title": "乘员数量和载货量",
-            "line": 15,
-            "tags": []
-          },
-          {
-            "title": "Creature and Cargo Capacity",
-            "line": 17,
-            "tags": []
-          },
-          {
-            "title": "防御等级 Armor Class",
-            "line": 23,
-            "tags": []
-          },
-          {
-            "title": "属性值 Ability Scores",
-            "line": 27,
-            "tags": []
-          },
-          {
-            "title": "生命值 Hit Points",
-            "line": 31,
-            "tags": []
-          },
-          {
-            "title": "操作台和操作人员",
-            "line": 41,
-            "tags": []
-          },
-          {
-            "title": "Actions Stations and Crew",
-            "line": 43,
-            "tags": []
-          }
-        ],
-        "line_count": 36,
+        "subsections": [],
+        "line_count": 14,
         "tags": [
           "exploration"
         ]
       },
       {
-        "title": "规则Rules",
-        "start_line": 47,
-        "end_line": 272,
+        "title": "乘员数量和载货量 Creature and Cargo Capacity",
+        "start_line": 15,
+        "end_line": 22,
         "type": "section",
-        "subsections": [
-          {
-            "title": "魔法要素 Magical Elements",
-            "line": 51,
-            "tags": []
-          },
-          {
-            "title": "借机攻击 Opportunity Attacks",
-            "line": 55,
-            "tags": []
-          },
-          {
-            "title": "操作台 Action Stations",
-            "line": 59,
-            "tags": []
-          },
-          {
-            "title": "灵魂燃料 Soul Fuel",
-            "line": 86,
-            "tags": []
-          },
-          {
-            "title": "恶魔秽液提速 Demon Ichor Boost",
-            "line": 98,
-            "tags": []
-          },
-          {
-            "title": "魔鬼座驾 Devil’s Ride",
-            "line": 106,
-            "tags": []
-          },
-          {
-            "title": "摧残者 Tormentor",
-            "line": 110,
-            "tags": []
-          },
-          {
-            "title": "恶魔粉碎者 Demon Grinder",
-            "line": 144,
-            "tags": []
-          },
-          {
-            "title": "清道夫 Scavenger",
-            "line": 150,
-            "tags": []
-          },
-          {
-            "title": "厄运 Mishaps",
-            "line": 198,
-            "tags": []
-          },
-          {
-            "title": "车辆损坏 Vehicular Exhaustion",
-            "line": 228,
-            "tags": []
-          },
-          {
-            "title": "维修 Repairs",
-            "line": 236,
-            "tags": []
-          },
-          {
-            "title": "撞击 Crashing",
-            "line": 255,
-            "tags": []
-          },
-          {
-            "title": "坠落 Falling",
-            "line": 269,
-            "tags": []
-          }
-        ],
-        "line_count": 226,
+        "subsections": [],
+        "line_count": 8,
+        "tags": [
+          "exploration",
+          "social"
+        ]
+      },
+      {
+        "title": "防御等级 Armor Class",
+        "start_line": 23,
+        "end_line": 26,
+        "type": "section",
+        "subsections": [],
+        "line_count": 4,
         "tags": [
           "exploration"
         ]
       },
       {
-        "title": "改装Fiendish Variations",
-        "start_line": 273,
-        "end_line": 320,
+        "title": "属性值 Ability Scores",
+        "start_line": 27,
+        "end_line": 30,
         "type": "section",
-        "subsections": [
-          {
-            "title": "可选武器 Alternative Weapon Stations",
-            "line": 277,
-            "tags": []
-          },
-          {
-            "title": "护甲升级 Armor Upgrades",
-            "line": 297,
-            "tags": []
-          },
-          {
-            "title": "魔法装置 Magical Gadgets",
-            "line": 313,
-            "tags": []
-          }
-        ],
+        "subsections": [],
+        "line_count": 4,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "生命值 Hit Points",
+        "start_line": 31,
+        "end_line": 40,
+        "type": "section",
+        "subsections": [],
+        "line_count": 10,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "操作台和操作人员 Actions Stations and Crew",
+        "start_line": 41,
+        "end_line": 50,
+        "type": "section",
+        "subsections": [],
+        "line_count": 10,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "魔法要素 Magical Elements",
+        "start_line": 51,
+        "end_line": 54,
+        "type": "section",
+        "subsections": [],
+        "line_count": 4,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "借机攻击 Opportunity Attacks",
+        "start_line": 55,
+        "end_line": 58,
+        "type": "section",
+        "subsections": [],
+        "line_count": 4,
+        "tags": [
+          "combat",
+          "encounter"
+        ]
+      },
+      {
+        "title": "操作台 Action Stations",
+        "start_line": 59,
+        "end_line": 85,
+        "type": "section",
+        "subsections": [],
+        "line_count": 27,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "灵魂燃料 Soul Fuel",
+        "start_line": 86,
+        "end_line": 97,
+        "type": "section",
+        "subsections": [],
+        "line_count": 12,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "恶魔秽液提速 Demon Ichor Boost",
+        "start_line": 98,
+        "end_line": 105,
+        "type": "section",
+        "subsections": [],
+        "line_count": 8,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "魔鬼座驾 Devil’s Ride",
+        "start_line": 106,
+        "end_line": 109,
+        "type": "section",
+        "subsections": [],
+        "line_count": 4,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "摧残者 Tormentor",
+        "start_line": 110,
+        "end_line": 143,
+        "type": "section",
+        "subsections": [],
+        "line_count": 34,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "恶魔粉碎者 Demon Grinder",
+        "start_line": 144,
+        "end_line": 149,
+        "type": "section",
+        "subsections": [],
+        "line_count": 6,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "清道夫 Scavenger",
+        "start_line": 150,
+        "end_line": 197,
+        "type": "section",
+        "subsections": [],
         "line_count": 48,
         "tags": [
           "exploration"
         ]
       },
       {
-        "title": "阿弗纳斯的追逐战 Chases on Avernus",
-        "start_line": 321,
+        "title": "厄运 Mishaps",
+        "start_line": 198,
+        "end_line": 227,
+        "type": "section",
+        "subsections": [],
+        "line_count": 30,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "车辆损坏 Vehicular Exhaustion",
+        "start_line": 228,
+        "end_line": 235,
+        "type": "section",
+        "subsections": [],
+        "line_count": 8,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "维修 Repairs",
+        "start_line": 236,
+        "end_line": 254,
+        "type": "section",
+        "subsections": [],
+        "line_count": 19,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "撞击 Crashing",
+        "start_line": 255,
+        "end_line": 268,
+        "type": "section",
+        "subsections": [],
+        "line_count": 14,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "坠落 Falling",
+        "start_line": 269,
+        "end_line": 276,
+        "type": "section",
+        "subsections": [],
+        "line_count": 8,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "可选武器 Alternative Weapon Stations",
+        "start_line": 277,
+        "end_line": 296,
+        "type": "section",
+        "subsections": [],
+        "line_count": 20,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "护甲升级 Armor Upgrades",
+        "start_line": 297,
+        "end_line": 312,
+        "type": "section",
+        "subsections": [],
+        "line_count": 16,
+        "tags": [
+          "exploration"
+        ]
+      },
+      {
+        "title": "魔法装置 Magical Gadgets",
+        "start_line": 313,
         "end_line": 347,
         "type": "section",
         "subsections": [],
-        "line_count": 27,
+        "line_count": 35,
         "tags": [
           "exploration"
         ]
@@ -2288,6 +2941,17 @@
     "filepath": "D:\\Downloads\\DND5e_坠入阿弗纳斯精排校对版1.0（不包含地理志）.pdf",
     "total_lines": 222,
     "scenes": [
+      {
+        "title": "附录 D：生物 Creature",
+        "start_line": 1,
+        "end_line": 6,
+        "type": "section",
+        "subsections": [],
+        "line_count": 6,
+        "tags": [
+          "exploration"
+        ]
+      },
       {
         "title": "安祖魔 Amnizu",
         "start_line": 7,
