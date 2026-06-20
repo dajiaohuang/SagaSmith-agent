@@ -20,55 +20,28 @@ Write-Host "=== NapCat QQ ===" -ForegroundColor Cyan
 # ---------- QR helper ----------
 function Show-QR {
     param([int]$TimeoutSec = 30)
-    $cacheDir = Join-Path $LocalQQ "NapCat.44498.Shell\versions\9.9.26-44498\resources\app\napcat\cache"
+    $qrFile = Join-Path $LocalQQ "NapCat.44498.Shell\versions\9.9.26-44498\resources\app\napcat\cache\qrcode.png"
 
-    # Check if QR already exists
-    $existing = Get-ChildItem $cacheDir -Filter "*.png" -ErrorAction SilentlyContinue |
-        Sort-Object LastWriteTime -Descending |
-        Where-Object { $_.Length -gt 256 } |
-        Select-Object -First 1
-    if ($existing) {
+    function _open_qr {
         Write-Host ""
         Write-Host "============================================" -ForegroundColor Cyan
-        Write-Host "  QR code ready - scan with QQ on your phone" -ForegroundColor White
-        Write-Host "  $($existing.FullName)" -ForegroundColor DarkGray
+        Write-Host "  QR code - scan with QQ on your phone" -ForegroundColor White
         Write-Host "============================================" -ForegroundColor Cyan
         Write-Host ""
-        Start-Process $existing.FullName
-        return
+        Start-Process $qrFile
     }
 
-    # Record existing files to detect new ones
-    $before = @{}
-    Get-ChildItem $cacheDir -Filter "*.png" -ErrorAction SilentlyContinue |
-        ForEach-Object { $before[$_.Name] = $_.LastWriteTime }
+    if (Test-Path $qrFile) { _open_qr; return }
 
     Write-Host "[..] Waiting for QR code..." -ForegroundColor Yellow
     for ($i = 0; $i -lt $TimeoutSec; $i++) {
-        $files = Get-ChildItem $cacheDir -Filter "*.png" -ErrorAction SilentlyContinue |
-            Sort-Object LastWriteTime -Descending
-        $qr = $files | Where-Object {
-            $_.Length -gt 1024 -and (
-                -not $before.ContainsKey($_.Name) -or
-                $_.LastWriteTime -gt $before[$_.Name]
-            )
-        } | Select-Object -First 1
-        if ($qr) {
-            Write-Host ""
-            Write-Host "============================================" -ForegroundColor Cyan
-            Write-Host "  QR code - scan with QQ on your phone" -ForegroundColor White
-            Write-Host "  $($qr.FullName)" -ForegroundColor DarkGray
-            Write-Host "============================================" -ForegroundColor Cyan
-            Write-Host ""
-            Start-Process $qr.FullName
-            return
-        }
+        if (Test-Path $qrFile) { _open_qr; return }
         Write-Host "." -NoNewline
         Start-Sleep -Seconds 1
     }
     Write-Host ""
-    Write-Host "[!] No QR appeared. Open:" -ForegroundColor DarkYellow
-    Write-Host "    $cacheDir" -ForegroundColor DarkGray
+    Write-Host "[!] QR did not appear. Open:" -ForegroundColor DarkYellow
+    Write-Host "    $qrFile" -ForegroundColor DarkGray
 }
 
 # ---------- main ----------
