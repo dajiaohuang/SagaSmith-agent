@@ -1,221 +1,371 @@
-# D&D DM Agent — Plugin 打包计划
+# D&D DM Agent — 多平台 Plugin 打包计划
 
-将当前 `dnd-dm-agent` 的所有自定义内容打包为一个 NanoBot plugin，
-使其能一键安装到任意 vanilla NanoBot 实例。
+将 dnd-dm-agent 的所有自定义内容打包为 OpenClaw、NanoBot、Hermes 三平台的
+原生 plugin，遵循各平台 plugin 范式。
 
-## 一、Plugin 结构
+---
 
-```
-dnd-dm-plugin/
-├── pyproject.toml              # pip install dnd-dm-plugin
-├── README.md
-├── setup.py / hatch_build.py
-│
-├── dnd_dm_plugin/
-│   ├── __init__.py             # plugin entry: register tools, skills, templates
-│   │
-│   ├── db/                     # 数据库层 (从 nanobot/dnd/db/ 提取)
-│   │   ├── database.py         # Database 类，会话工厂，Alembic 迁移
-│   │   ├── campaigns.py        # CampaignService
-│   │   ├── characters.py       # CharacterService
-│   │   ├── events.py           # CampaignEventService
-│   │   ├── snapshots.py        # CampaignSnapshotService
-│   │   ├── module_content.py   # ModuleImportService
-│   │   ├── module_progress.py  # ModuleProgressService
-│   │   ├── undo.py             # UndoManager
-│   │   ├── cli.py              # JSON CLI (保留，工具调用的后备)
-│   │   ├── models/             # 18 个 ORM 模型
-│   │   │   ├── __init__.py
-│   │   │   ├── common.py
-│   │   │   ├── campaign.py
-│   │   │   ├── knowledge.py
-│   │   │   ├── module.py
-│   │   │   ├── runtime.py
-│   │   │   ├── audit.py
-│   │   │   └── integration.py
-│   │   └── migrations/         # 6 个 Alembic 迁移脚本
-│   │
-│   ├── modules/                # 模组处理 (从 nanobot/dnd/modules/)
-│   │   ├── chunking.py         # 分块
-│   │   ├── pdf_parser.py       # PDF 解析
-│   │   ├── scene_utils.py      # 场景解析工具
-│   │   └── search.py           # ModuleSearchService
-│   │
-│   ├── rules/                  # 规则引擎 (从 nanobot/dnd/rules/)
-│   │   ├── embedding.py        # BgeM3Embedder
-│   │   ├── parser.py           # Markdown 解析
-│   │   ├── ingest.py           # RuleIngestService
-│   │   └── search.py           # RuleSearchService
-│   │
-│   ├── engine/                 # 骰子与战斗计算 (从 dnd-engine 提取)
-│   │   ├── dice.py             # roll_d20, roll_dice
-│   │   ├── checks.py           # skill/save/attack 检定
-│   │   ├── resolve.py          # 伤害/DC 计算
-│   │   ├── xp.py               # 经验值计算
-│   │   └── templates.py        # 角色/怪物模板
-│   │
-│   └── tools/                  # Agent 工具 (从 nanobot/agent/tools/ 提取)
-│       ├── dnd_campaign.py     # DndCampaignTool
-│       ├── dnd_module.py       # DndModuleTool
-│       ├── dnd_rules.py        # DndRulesTool
-│       └── dnd_save.py         # DndSaveTool
-│
-├── skills/                     # Skill 定义
-│   ├── dnd-dm/                 # DM 人格 Skill
-│   │   ├── SKILL.md
-│   │   └── references/
-│   │       ├── DM_RULES.md
-│   │       ├── DM_TEMPLATES.md
-│   │       ├── CHAR_CREATION.md
-│   │       ├── MODULE_INDEX.md
-│   │       └── MODULE_ARC.md
-│   ├── dnd-campaign-manager/   # 战役管理 Skill
-│   │   └── SKILL.md
-│   ├── dnd-module-gen/         # 模组生成 Skill
-│   │   └── SKILL.md
-│   └── napcat-qq/              # QQ 频道 Skill
-│       └── SKILL.md
-│
-├── templates/                  # SOUL 模板
-│   ├── SOUL.md                 # 明萨拉·班瑞 DM 人格
-│   ├── IDENTITY.md             # 身份约束
-│   ├── AGENTS.md               # 会话启动协议
-│   ├── agent/
-│   │   └── identity.md         # 运行时注入模板
-│   └── memory/
-│       └── MEMORY.md           # 长期记忆模板
-│
-├── data/                       # 规则数据
-│   ├── srd/                    # SRD 5.2.1 英文 (20 文件)
-│   │   └── DND5eSRD_*.md
-│   └── srd-zh/                 # SRD 中文翻译 (子模块)
-│
-├── channels/                   # 频道 (可选)
-│   └── napcat.py               # NapCat QQ 频道
-│
-└── scripts/                    # 启动与管理脚本
-    ├── plugin_install.py       # 一键安装：pip install + 导入 SRD
-    ├── plugin_status.py        # 状态检查
-    └── plugin_update.py        # 升级迁移
-```
+## 一、平台 Plugin 范式对比
 
-## 二、依赖
+| | OpenClaw | NanoBot | Hermes |
+|---|----------|---------|--------|
+| **Plugin 格式** | Bundle 目录（`.claude-plugin/` + `.mcp.json` + `SKILL.md`） | `skills/<name>/SKILL.md` + tools 自动发现 | `~/.hermes/plugins/<name>/` + `plugin.yaml` + `__init__.py` |
+| **Skill 定义** | `SKILL.md`（YAML frontmatter） | `SKILL.md`（YAML frontmatter + `always: true/false`） | `SKILL.md`（YAML frontmatter + `version` + `platforms`） |
+| **工具注册** | MCP Server（stdio/HTTP）→ `serverName__toolName` | Python Tool 类，package scan 自动注册 | `ctx.register_tool()` in `__init__.py` |
+| **安装方式** | `openclaw plugins install <path>` | 复制到 `skills/` 和 `agent/tools/` | `pip install` + entry point 或手动复制 |
+| **命名空间** | MCP server name 前缀 | 无（全局 tool name） | `plugin:skill` 前缀 |
+| **发布** | GitHub repo / tarball | 复制目录 | PyPI pip 包 |
+
+---
+
+## 二、公共资源层（三平台共享）
+
+无论哪个平台，以下内容是相同的，放在共享资源目录：
 
 ```
-pyproject.toml [project.dependencies]:
-  sqlalchemy >=2.0
-  alembic >=1.13
-  pypdf >=4.0
-  sentence-transformers >=3.0
-  numpy >=1.26
-  markitdown >=0.0.1
-
-[project.optional-dependencies]:
-  gpu = ["torch >=2.0"]
+dnd-dm-resources/
+├── SKILL.md.dnd-dm              # DM 人格 Skill
+├── SKILL.md.dnd-campaign        # 战役管理 Skill
+├── SKILL.md.dnd-module-gen      # 模组生成 Skill
+├── SKILL.md.napcat-qq           # QQ 频道 Skill
+├── SKILL.md                     # 合并版（可选）
+│
+├── references/                  # Skill 引用文件
+│   ├── DM_RULES.md
+│   ├── DM_TEMPLATES.md
+│   ├── CHAR_CREATION.md
+│   ├── MODULE_INDEX.md
+│   └── MODULE_ARC.md
+│
+├── templates/                   # SOUL 模板
+│   ├── SOUL.md                  # 明萨拉·班瑞 DM 人格
+│   ├── IDENTITY.md
+│   ├── AGENTS.md
+│   └── memory/MEMORY.md
+│
+├── data/                        # 规则数据
+│   ├── srd/                     # SRD 5.2.1 英文 (20 文件)
+│   └── srd-zh/                  # SRD 中文
+│
+├── db_schema/                   # SQLite schema + 迁移
+│   └── migrations/              # 6 个 Alembic 脚本
+│
+├── MCP/                         # MCP Server 实现（Python）
+│   ├── dnd_campaign.py          # 战役 CRUD MCP tool
+│   ├── dnd_save.py              # 存档 MCP tool
+│   ├── dnd_module.py            # 模组 MCP tool
+│   ├── dnd_rules.py             # 规则 MCP tool
+│   ├── dnd_dice.py              # 骰子计算 MCP tool
+│   └── dnd_db.py                # 数据库管理
+│
+└── napcat/                      # QQ 频道参考
+    └── napcat.py
 ```
 
-不需要依赖 nanobot 本身——工具使用框架的 Tool/ToolContext 基类，安装时动态适配。
+---
 
-## 三、安装流程
+## 三、OpenClaw Plugin
+
+### 目录结构
+
+```
+dnd-dm-openclaw/
+├── .claude-plugin/
+│   └── plugin.json              # 声明为 OpenClaw bundle
+├── .mcp.json                    # MCP Server 配置
+├── SKILL.md                     # 合并的 skill 指令（给 agent 的提示词）
+├── references/                  # → dnd-dm-resources/references/
+├── templates/                   # → dnd-dm-resources/templates/
+├── data/                        # → dnd-dm-resources/data/
+├── MCP/                         # → dnd-dm-resources/MCP/
+└── tools/                       # NapCat QQ channel
+    └── napcat.py
+```
+
+### `.claude-plugin/plugin.json`
+
+```json
+{
+  "name": "dnd-dm",
+  "version": "1.0.0",
+  "description": "D&D 5e Dungeon Master agent — campaign DB, module import, dice engine, rule retrieval"
+}
+```
+
+### `.mcp.json`
+
+```json
+{
+  "mcpServers": {
+    "dnd-campaign": {
+      "command": "python",
+      "args": ["-m", "dnd_dm_mcp.campaign"],
+      "env": { "DND_DATABASE_URL": "sqlite:///${WORKSPACE}/dnd_dm.db" }
+    },
+    "dnd-save": {
+      "command": "python",
+      "args": ["-m", "dnd_dm_mcp.save"],
+      "env": { "DND_DATABASE_URL": "sqlite:///${WORKSPACE}/dnd_dm.db" }
+    },
+    "dnd-module": {
+      "command": "python",
+      "args": ["-m", "dnd_dm_mcp.module"],
+      "env": { "DND_DATABASE_URL": "sqlite:///${WORKSPACE}/dnd_dm.db" }
+    },
+    "dnd-rules": {
+      "command": "python",
+      "args": ["-m", "dnd_dm_mcp.rules"],
+      "env": { "DND_DATABASE_URL": "sqlite:///${WORKSPACE}/dnd_dm.db" }
+    },
+    "dnd-dice": {
+      "command": "python",
+      "args": ["-m", "dnd_dm_mcp.dice"]
+    }
+  }
+}
+```
+
+### 安装
 
 ```bash
-# 1. Install plugin
-pip install dnd-dm-plugin
-
-# 2. Install to NanoBot instance
-python -m dnd_dm_plugin install --target ~/.nanobot/
-
-# This copies:
-#   tools/*.py          → ~/.nanobot/agent/tools/dnd_*.py
-#   skills/*/           → ~/.nanobot/skills/
-#   templates/*         → ~/.nanobot/templates/
-#   channels/napcat.py  → ~/.nanobot/channels/napcat.py
-
-# 3. Import SRD (one-time)
-python -m dnd_dm_plugin ingest-srd --lang en
-python -m dnd_dm_plugin ingest-srd --lang zh-CN
-
-# 4. Verify
-python -m dnd_dm_plugin status
-# → DB: OK (dnd_dm.db, schema v6)
-# → SRD: 2700+ chunks indexed
-# → Tools: dnd_campaign, dnd_module, dnd_rules, dnd_save
-# → Skills: dnd-dm, dnd-campaign-manager, dnd-module-gen, napcat-qq
-# → SOUL: Minthara Baenre DM persona
+openclaw plugins install ./dnd-dm-openclaw
+openclaw gateway restart
+# 首次：导入 SRD 数据
+dnd-rules__ingest_srd --path ./data/srd/
 ```
 
-## 四、适配层
+### 工具名映射
 
-Plugin 不硬编码 NanoBot 路径。通过一个适配层解决框架差异：
+```
+dnd-campaign__campaign_start → 一键开团
+dnd-campaign__campaign_list   → 列出战役
+dnd-save__save_create         → 创建存档
+dnd-module__module_import     → 导入模组
+dnd-module__module_search     → 搜索模组
+dnd-rules__rules_search       → 搜索规则
+dnd-dice__roll_d20            → d20 检定
+...
+```
+
+---
+
+## 四、NanoBot Plugin
+
+### 目录结构
+
+```
+dnd-dm-nanobot/
+├── skills/
+│   ├── dnd-dm/
+│   │   ├── SKILL.md            # always: true（核心 DM 人格）
+│   │   └── references/         # DM_RULES.md 等
+│   ├── dnd-campaign-manager/
+│   │   └── SKILL.md            # always: false（按需加载）
+│   ├── dnd-module-gen/
+│   │   └── SKILL.md            # always: false
+│   └── napcat-qq/
+│       └── SKILL.md            # always: false
+│
+├── tools/
+│   ├── dnd_campaign.py         # DndCampaignTool
+│   ├── dnd_module.py           # DndModuleTool
+│   ├── dnd_rules.py            # DndRulesTool
+│   ├── dnd_save.py             # DndSaveTool
+│   └── dnd_dice.py             # DndDiceTool（新增）
+│
+├── templates/
+│   ├── SOUL.md
+│   ├── IDENTITY.md
+│   ├── AGENTS.md
+│   ├── agent/
+│   │   └── identity.md
+│   └── memory/
+│       └── MEMORY.md
+│
+├── domain/                     # D&D 业务层
+│   ├── db/                     # database + models + migrations + services
+│   ├── modules/                # chunking + pdf_parser + scene_utils + search
+│   ├── rules/                  # embedding + parser + ingest + search
+│   └── engine/                 # dice + checks + resolve + xp + templates
+│
+├── channels/
+│   └── napcat.py
+│
+├── data/
+│   ├── srd/
+│   └── srd-zh/
+│
+├── scripts/
+│   ├── install.sh              # 复制所有文件到 ~/.nanobot/
+│   └── ingest-srd.sh           # 导入 SRD
+│
+└── README.md
+```
+
+### `install.sh`
+
+```bash
+#!/bin/bash
+NANOBOT="$HOME/.nanobot"
+cp -r skills/*    "$NANOBOT/skills/"
+cp -r tools/*.py  "$NANOBOT/agent/tools/"
+cp -r templates/* "$NANOBOT/templates/"
+cp -r domain/*    "$NANOBOT/dnd/"
+cp -r channels/*  "$NANOBOT/channels/"
+cp -r data/*      "$NANOBOT/dnd/data/"
+echo "D&D DM Agent installed. Restart nanobot gateway."
+```
+
+### Skill frontmatter 设置
+
+```yaml
+# dnd-dm/SKILL.md
+---
+name: dnd-dm
+description: D&D 5e Dungeon Master — core adjudication loop, dice engine, campaign/snapshot workflow, rule/module retrieval.
+always: true
+---
+
+# dnd-campaign-manager/SKILL.md
+---
+name: dnd-campaign-manager
+description: Manage D&D campaigns — create, import modules, save/load snapshots, undo.
+always: false
+---
+```
+
+---
+
+## 五、Hermes Plugin
+
+### 目录结构
+
+```
+dnd-dm-hermes/
+├── __init__.py                  # register(ctx) 入口
+├── plugin.yaml                 # 插件声明
+├── skills/                     # 4 个 SKILL.md
+│   ├── dnd-dm/
+│   │   ├── SKILL.md
+│   │   └── references/
+│   ├── dnd-campaign/
+│   │   └── SKILL.md
+│   ├── dnd-module-gen/
+│   │   └── SKILL.md
+│   └── napcat-qq/
+│       └── SKILL.md
+├── tools/                      # MCP server 实现
+│   └── mcp_servers.py
+├── templates/                  # SOUL
+│   └── SOUL.md
+├── data/
+│   └── srd/
+├── mcp_config.yaml             # Hermes MCP 配置
+└── db_schema/
+    └── migrations/
+```
+
+### `plugin.yaml`
+
+```yaml
+name: dnd-dm
+version: 1.0.0
+description: D&D 5e Dungeon Master agent system
+author: dm-agent
+homepage: https://github.com/dajiaohuang/dnd-dm-agent
+license: MIT
+capabilities:
+  tools: true
+  mcp: true
+  skills: true
+platforms: [macos, linux, windows]
+```
+
+### `__init__.py`
 
 ```python
-# dnd_dm_plugin/adapters.py
+from pathlib import Path
 
-class NanoBotAdapter:
-    """Default adapter for vanilla NanoBot."""
-    tool_base = "nanobot.agent.tools.base:Tool"
-    skill_path = "~/.nanobot/skills"
-    template_path = "~/.nanobot/templates"
-    channel_path = "nanobot.channels"
-
-class OpenClawAdapter:
-    """Adapter for OpenClaw."""
-    tool_base = "openclaw.tools:Tool"
-    skill_path = "~/.openclaw/skills"
-    ...
+def register(ctx):
+    # Register bundled skills
+    skills_dir = Path(__file__).parent / "skills"
+    for child in sorted(skills_dir.iterdir()):
+        skill_md = child / "SKILL.md"
+        if child.is_dir() and skill_md.exists():
+            ctx.register_skill(f"dnd-{child.name}", skill_md)
+    
+    # Register MCP servers from mcp_config.yaml
+    import yaml
+    mcp_cfg = yaml.safe_load((Path(__file__).parent / "mcp_config.yaml").read_text())
+    for name, cfg in mcp_cfg.get("mcpServers", {}).items():
+        ctx.register_mcp_server(name, cfg)
+    
+    # Expose a dnd-dice tool directly (no MCP needed)
+    from .tools.mcp_servers import roll_d20_schema, roll_d20_handler
+    ctx.register_tool("dnd_dice__roll_d20", roll_d20_schema, roll_d20_handler)
 ```
 
-未来支持 `--framework openclaw` 时用对应适配器。
+### 安装
 
-## 五、当前 repo 与 plugin 的对应关系
+```bash
+# pip install (entry point)
+pip install dnd-dm-hermes
 
-| 当前路径 | Plugin 路径 | 提取方式 |
-|---------|------------|---------|
-| `nanobot/dnd/db/*` | `dnd_dm_plugin/db/*` | 移除 nanobot 框架依赖 |
-| `nanobot/dnd/modules/*` | `dnd_dm_plugin/modules/*` | 直接复制 |
-| `nanobot/dnd/rules/*` | `dnd_dm_plugin/rules/*` | 直接复制 |
-| `nanobot/agent/tools/dnd_*.py` | `dnd_dm_plugin/tools/*` | 改为相对导入 |
-| `nanobot/skills/dnd-*/` | `skills/*` | 直接复制 |
-| `nanobot/templates/SOUL.md` 等 | `templates/*` | 直接复制 |
-| `nanobot/skills/dnd-dm/dnd-engine/` | `dnd_dm_plugin/engine/` | 仅取 active 5 文件 |
-| `nanobot/skills/dnd-dm/srd/` | `data/srd/` | 直接复制 |
-| `references/DND.SRD.zh-CN/` | `data/srd-zh/` | 子模块 |
-| `nanobot/channels/napcat.py` | `channels/napcat.py` | 直接复制 |
+# 或手动复制
+cp -r dnd-dm-hermes ~/.hermes/plugins/dnd-dm
+hermes gateway restart
+```
 
-## 六、不纳入 Plugin 的部分
+### Skill 加载方式
 
-| 组件 | 原因 |
-|------|------|
-| `nanobot/agent/loop.py` 等框架代码 | 属于 NanoBot 本体 |
-| `nanobot/providers/` | 同上 |
-| `nanobot/session/` | 同上 |
-| `nanobot/config/` | 同上 |
-| `nanobot/channels/` (除 napcat) | 同上 |
-| `scripts/start-*.bat/ps1` | 环境相关启动脚本 |
-| `tools/NapCat.Shell/` | QQ 运行时，单独安装 |
-| `localqq/` | 已废弃 |
-| Engine 死代码 (6 个 DEPRECATED) | 不再维护 |
-| `references/nanobotREADME.md` | 上游文档 |
-| `docs/` (24 个上游文档) | 上游文档 |
-| `webui/` | 上游 WebUI |
-| `Dockerfile`, `docker-compose.yml` | 部署相关，可选 |
+```
+skill_view("dnd-dnd-dm")           # → 加载 DM 人格
+skill_view("dnd-dnd-campaign")     # → 加载战役管理
+```
+
+Hermes 的 `plugin:skill` 命名空间确保不会与内置 skill 冲突。
+
+---
+
+## 六、各平台适配差异
+
+| 能力 | OpenClaw | NanoBot | Hermes |
+|------|----------|---------|--------|
+| DM 人格注入 | SKILL.md 全文注入 prompt | `always: true` → 每次注入 | `skill_view()` → 按需注入 |
+| 骰子计算 | dnd-dice MCP tool | DndDiceTool Python 类 | `ctx.register_tool()` |
+| 数据库 | MCP stdio server | Python 直接调用 SQLAlchemy | MCP stdio server |
+| 模组 PDF 解析 | MCP tool | Python 直接调用 | MCP tool |
+| QQ 频道 | NapCat channel（单独文件） | napcat.py channel | 不适用（Hermes 无 QQ channel） |
+| 规则数据 | 随 plugin 打包 | 随 plugin 打包 | 随 plugin 打包 |
+
+---
 
 ## 七、分阶段实施
 
-### Phase 1: 提取核心层
-- 创建 `dnd_dm_plugin` 包结构
-- 提取 `db/`, `modules/`, `rules/` 并移除 nanobot 框架依赖
-- 提取 `engine/`（仅 5 个 active 文件）
+### Phase 1: 公共资源层
+- 创建 `dnd-dm-resources/` 目录
+- 提取 SKILL.md、references、templates、data、db_schema
 
-### Phase 2: 包装工具
-- 移植 `dnd_*.py` 工具，改为相对导入
-- 实现 `install` 命令（复制到目标 NanoBot 实例）
+### Phase 2: MCP Server 实现
+- 将 4 个 NanoBot Tool 改写为 5 个 MCP Server（stdio 协议）
+- 新增 `dnd-dice` MCP Server（纯计算，无数据库依赖）
+- 测试 MCP Server 独立运行
 
-### Phase 3: 打包资源
-- 复制 `skills/`, `templates/`, `data/`
-- 实现 `ingest-srd` 和 `status` 命令
+### Phase 3: OpenClaw Plugin
+- 创建 `.claude-plugin/` + `.mcp.json` + `SKILL.md`
+- 测试 `openclaw plugins install`
 
-### Phase 4: 发布
-- pip 包配置 (`pyproject.toml`)
-- 安装文档
-- 版本管理策略
+### Phase 4: NanoBot Plugin
+- 所有组件放入标准 NanoBot 路径
+- `install.sh` 一键部署
+- Skill frontmatter 设置 `always: true/false`
+
+### Phase 5: Hermes Plugin
+- 创建 `plugin.yaml` + `__init__.py`
+- 注册 skills + MCP servers + 内联 tools
+- 测试 pip install entry point
+
+### Phase 6: 文档
+- 各平台 README
+- 首次安装脚本（SRD 导入、数据库初始化）
+- Docker Compose 一键部署
