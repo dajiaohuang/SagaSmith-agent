@@ -18,7 +18,7 @@ echo   First time? Use start-all.bat to scan QR.
 echo.
 
 :: ---------- NapCat QQ ----------
-if not exist "napcat_localqq\napcat\NapCatWinBootMain.exe" (
+if not exist "tools\napcat\NapCatWinBootMain.exe" (
     echo [!] NapCat not found
     echo     Run: powershell -File scripts\setup-napcat.ps1
     goto gateway

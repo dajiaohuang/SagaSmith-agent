@@ -5,14 +5,12 @@ $ErrorActionPreference = "Continue"
 $Base = $PSScriptRoot
 Set-Location (Split-Path $Base)
 
-# NapCat injection files live in *_localqq
-$NapCatLocal = Get-ChildItem -Directory -Path (Get-Location) -Filter "*_localqq" |
-    Select-Object -First 1
-if (-not $NapCatLocal) {
-    Write-Host "[!] No *_localqq directory found. Run setup-napcat.ps1 first." -ForegroundColor Red
+# NapCat injection files
+$NapCatDir = Join-Path (Get-Location) "tools\napcat"
+if (-not (Test-Path $NapCatDir)) {
+    Write-Host "[!] tools/napcat not found. Run setup-napcat.ps1 first." -ForegroundColor Red
     exit 1
 }
-$NapCatLocal = $NapCatLocal.FullName
 
 Write-Host "=== NapCat QQ ===" -ForegroundColor Cyan
 
@@ -48,7 +46,6 @@ Start-Process -FilePath $QQExe -WorkingDirectory (Split-Path $QQExe)
 Start-Sleep -Seconds 3
 
 # ---------- inject NapCat ----------
-$NapCatDir = Join-Path $NapCatLocal "napcat"
 $env:NAPCAT_PATCH_PACKAGE = Join-Path $NapCatDir "qqnt.json"
 $env:NAPCAT_LOAD_PATH = Join-Path $NapCatDir "loadNapCat.js"
 $env:NAPCAT_INJECT_PATH = Join-Path $NapCatDir "NapCatWinBootHook.dll"

@@ -3,7 +3,7 @@
 # Run from repo root: .\scripts\setup-napcat.ps1
 
 param(
-    [string]$LocalQQDir = "napcat_localqq",
+    [string]$LocalQQDir = "tools/napcat",
     [string]$NapCatVersion = "v4.18.6",
     [int]$WsPort = 3001,
     [int]$WebUIPort = 6099
@@ -139,6 +139,6 @@ Write-Host "WebUI: http://127.0.0.1:${WebUIPort}"
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Cyan
 Write-Host "  1. Enable napcat in ~/.nanobot/config.json (see README.md)"
-Write-Host "  2. Start: .\napcat_localqq\start.bat"
+Write-Host "  2. Start: .\tools/napcat\start.bat"
 Write-Host "  3. Scan QR to login QQ"
 Write-Host "  4. Start gateway: `$env:DND_EMBEDDING_DEVICE='cuda'; nanobot gateway"
