@@ -59,13 +59,23 @@ if (-not (Test-Path $QQExe)) {
 $QQRunning = Get-Process -Name "QQ" -ErrorAction SilentlyContinue |
     Where-Object { $_.Path -like "*_localqq*" }
 
-if (-not $QQRunning) {
-    Write-Host "[..] Starting QQ..." -ForegroundColor Yellow
-    Start-Process -FilePath $QQExe -WorkingDirectory (Split-Path $QQExe)
-    if (-not $NoQR) { Show-QR }
-} else {
-    Write-Host "[OK] QQ already running (PID: $($QQRunning.Id))" -ForegroundColor Green
+# Check if NapCat WS is already up — if QQ is running without it, restart QQ
+$wsUp = netstat -ano 2>$null | Select-String "LISTENING.*3001"
+
+if ($wsUp) {
+    Write-Host "[OK] NapCat already ready on port 3001" -ForegroundColor Green
+    exit 0
 }
+
+if ($QQRunning) {
+    Write-Host "[..] QQ running but NapCat not connected - restarting QQ..." -ForegroundColor Yellow
+    $QQRunning | Stop-Process -Force
+    Start-Sleep -Seconds 2
+}
+
+Write-Host "[..] Starting QQ..." -ForegroundColor Yellow
+Start-Process -FilePath $QQExe -WorkingDirectory (Split-Path $QQExe)
+if (-not $NoQR) { Show-QR }
 
 # Inject NapCat
 $NapCatDir = Join-Path $LocalQQ "NapCat.44498.Shell\versions\9.9.26-44498\resources\app\napcat"
