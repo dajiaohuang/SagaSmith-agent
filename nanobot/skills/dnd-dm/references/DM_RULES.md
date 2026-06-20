@@ -135,12 +135,20 @@ Archived 战役拒绝 save/load 操作。
 ### 4.0 模组入库
 
 战役创建时的 `--module` 仅设置名称标签，不代表模组内容已存在。使用模组事实前必须导入
-用户提供的 UTF-8 Markdown 章节目录，并核验章节数与场景数：
+用户提供的 UTF-8 Markdown 章节目录，并核验章节数与场景数。
+
+**导入前必须先检查模组是否已存在**（`module list` 或 `dnd_module action=index`）。
+如果战役已有同名模组且 chapter/scene 数非零，直接使用已有数据，不得重复导入或解析源文件。
+仅在以下情况导入：
+- 战役没有任何模组，或
+- 用户明确要求重新导入（先 delete 再 import）
 
 ```powershell
+# 先检查
+python -m nanobot.dnd.db.cli module list --campaign <campaign-id>
+# 确认缺失后再导入
 python -m nanobot.dnd.db.cli module import --campaign <campaign-id> `
   --name "<模组名>" --path "<绝对目录>"
-python -m nanobot.dnd.db.cli module list --campaign <campaign-id>
 ```
 
 没有合法本地模组源时必须明确报告缺失，禁止根据模型记忆重建已出版模组。

@@ -77,25 +77,36 @@ Do not save into or load an archived campaign until it is explicitly reactivated
 ## Import module content
 
 The campaign `--module` value is only a label. Before using module facts, import the supplied
-chapter documents and verify the resulting chapter, scene, chunk, and embedding counts. Markdown
-is read directly; PDF, DOCX, PPTX, XLSX, HTML, and related documents are converted through
-MarkItDown before storage and Dense indexing:
+chapter documents and verify the resulting chapter, scene, chunk, and embedding counts.
+
+**Always check if the module already exists first.** Call `dnd_module action=index` or
+`module list` before importing. If the campaign already has the module imported (chapters
+and scenes present), use the existing data — **do not re-import or re-parse the source**.
+Only import when:
+- No module exists for the campaign, OR
+- The user explicitly requests a re-import (delete old → import new)
+
+Markdown is read directly; PDF, DOCX, PPTX, XLSX, HTML, and related documents are converted
+through MarkItDown before storage and Dense indexing:
 
 ```powershell
+# Check first
+python -m nanobot.dnd.db.cli module list --campaign <campaign-id>
+
+# Only if missing:
 python -m nanobot.dnd.db.cli module import `
   --campaign <campaign-id> `
   --name "模组名称" `
   --path "<absolute-module-directory>"
-python -m nanobot.dnd.db.cli module list --campaign <campaign-id>
 python -m nanobot.dnd.db.cli module index --campaign <campaign-id>
 ```
 
 Channel attachments are downloaded to local media paths and appear in the turn as
 `[Attachment: <path>]`. When the user explicitly identifies an attachment as module source,
-call the native `dnd_module` tool with `action=import`, the exact `source_path`, current
-`campaign_id`, and confirmed `module_name`. Then call `action=index` and `action=status` and
-report chapter, scene, chunk, and embedding counts. Do not treat every uploaded document as a
-module. The CLI above is the maintenance fallback, not the normal Agent path.
+**first check `module list`** to see if the module is already imported. If already present,
+skip import and report the existing chapter/scene counts. Only call `dnd_module action=import`
+when the module is genuinely missing. Do not treat every uploaded document as a module.
+The CLI above is the maintenance fallback, not the normal Agent path.
 
 PDF imports use the dedicated structured converter rather than MarkItDown's flat PDF text:
 page boundaries and bookmarks are retained, repeated margins are removed, wrapped CJK text is
