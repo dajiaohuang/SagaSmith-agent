@@ -14,8 +14,9 @@
 python -m <domain-cli> rules ingest-srd
 ```
 
-该命令解析标题层级与字符位置，生成检索块，并用 `BAAI/bge-m3` 创建 1024 维归一化
-Dense Vector。内容 checksum 未变化时跳过重建。嵌入向量优先写入 ChromaDB
+该命令解析标题层级与字符位置，生成检索块，并使用配置中选定的 BGE profile
+创建归一化 Dense Vector。M3、中文 Small、英文 Small 使用独立 collection；
+内容 checksum 与 embedding profile 均未变化时才跳过重建。嵌入向量优先写入 ChromaDB
 （若已配置 `CHROMA_DB_URL` 或 `CHROMA_DB_PATH`），未配置时写入 SQL `embedding_json` 列。
 
 查看层级和索引状态：

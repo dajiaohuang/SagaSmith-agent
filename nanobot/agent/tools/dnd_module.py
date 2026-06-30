@@ -55,7 +55,8 @@ class DndModuleTool(Tool):
     name = "dnd_module"
     description = (
         "Import channel attachments or local documents as campaign modules, inspect their "
-        "indexes, search with lexical and BGE-M3 Dense retrieval, expand complete scenes, "
+        "indexes, search with lexical and configured BGE Dense retrieval, expand complete "
+        "scenes, "
         "and persist current scene progress. "
         "BEFORE importing, always call action=index to check if the module already exists. "
         "If already imported (chapters > 0), skip import and use existing data. "

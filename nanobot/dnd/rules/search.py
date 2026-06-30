@@ -1,4 +1,4 @@
-"""Campaign-scoped exact, full-text, and BGE-M3 hybrid rule retrieval."""
+"""Campaign-scoped exact, full-text, and profile-aware BGE rule retrieval."""
 
 from __future__ import annotations
 

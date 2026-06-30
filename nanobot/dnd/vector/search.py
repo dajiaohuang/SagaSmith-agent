@@ -27,7 +27,7 @@ def chroma_dense_search(
 
     Args:
         collection_name: ``"dnd_rules"`` or ``"dnd_modules"``.
-        query_vector: Normalised 1024-dim BGE-M3 embedding.
+        query_vector: Normalized embedding from the collection's bound BGE profile.
         where: Optional ChromaDB metadata filter dict (e.g.
                ``{"campaign_id": "abc"}`` or
                ``{"rule_set_id": "x", "publication_id": {"$in": ["a","b"]}}``).

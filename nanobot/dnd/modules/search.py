@@ -1,4 +1,4 @@
-"""Campaign-scoped lexical and BGE-M3 dense module retrieval."""
+"""Campaign-scoped lexical and profile-aware BGE module retrieval."""
 
 from __future__ import annotations
 

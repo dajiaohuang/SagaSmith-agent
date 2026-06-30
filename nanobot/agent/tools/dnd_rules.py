@@ -47,7 +47,8 @@ class DndRulesTool(Tool):
 
     name = "dnd_rules"
     description = (
-        "Search the versioned D&D rules database with exact, full-text, and BGE-M3 dense "
+        "Search the versioned D&D rules database with exact, full-text, and configured "
+        "BGE dense "
         "retrieval. Use campaign_id when adjudicating a campaign so only its pinned rules "
         "and supplements are searched. Expand a returned chunk before quoting a full rule."
     )

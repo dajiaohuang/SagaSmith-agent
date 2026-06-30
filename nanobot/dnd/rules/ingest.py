@@ -1,4 +1,4 @@
-"""Incremental hierarchical rule ingestion with optional BGE-M3 embeddings."""
+"""Incremental hierarchical rule ingestion with configurable BGE embeddings."""
 
 from __future__ import annotations
 
