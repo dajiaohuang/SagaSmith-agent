@@ -1,4 +1,10 @@
-# SagaSmith Refactor — Handover
+# SagaSmith Refactor v1 — Experimental Archive
+
+> [!CAUTION]
+> This branch is an experimental architecture spike and is not a release branch.
+> The supported SagaSmith agent remains on `main`. New shared infrastructure is
+> being developed in `SagaSmithAI/sagasmith-core`, while the production D&D
+> implementation is moving to `SagaSmithAI/sagasmith-dnd`.
 
 > Branch: `refactor/v1` | Base: nanobot v0.2.2 | Date: 2026-07-01
 
